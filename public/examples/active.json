@@ -24,6 +24,7 @@
     "lastBlock": null
   },
   "pricing": {
+    "bzzPerDay": 1.14,
     "usdPerDay": 0.0456
   },
   "contributions": [

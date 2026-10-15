@@ -45,6 +45,7 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const short = (h, a, b) => h ? (h.length > a + b + 1 ? h.slice(0, a) + '…' + (b ? h.slice(-b) : '') : h) : '';
   const money = n => n == null ? '' : '$' + (n < 10 ? n.toFixed(2) : Math.round(n).toLocaleString('en-US'));
+  const bzz = n => n == null ? '' : (n < 100 ? n.toFixed(1) : Math.round(n).toLocaleString('en-US')) + ' BZZ';
   const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
   const store = {
     get(k) { try { return JSON.parse(sessionStorage.getItem(k)); } catch (e) { return null; } },
@@ -375,16 +376,21 @@
     $('donateOwner').textContent = short(s.owner, 6, 4);
   }
 
-  // the Add time sheet: three durations, priced from today's price, each added to the current end
+  // the Add time sheet: three durations, priced from today's price, each added to the current end.
+  // the only place on the page that shows BZZ, always with its dollar equivalent underneath
   function renderSheet(s, end) {
     const per = s.pricing && s.pricing.usdPerDay;
+    const perBzz = s.pricing && s.pricing.bzzPerDay;
     $('sheetLead').textContent = 'Extends the whole stamp, ' + s.capacity + ', for everyone who uses it. It does not make it yours.';
     const opts = $('opts'); opts.innerHTML = '';
     OPTIONS.forEach((o, i) => {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'opt'; b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', i === 1 ? 'true' : 'false'); b.dataset.days = o.days;
       const to = end ? new Date(end.getTime() + o.days * DAY) : null;
-      b.innerHTML = '<span><b>' + o.label + '</b><small>' + (to ? 'to about ' + fmt(to) : '') + '</small></span><span class="usdv">' + (per ? '≈ ' + money(per * o.days) : '') + '</span>';
+      const price = perBzz
+        ? '<b>≈ ' + bzz(perBzz * o.days) + '</b>' + (per ? '<small>≈ ' + money(per * o.days) + '</small>' : '')
+        : (per ? '<b>≈ ' + money(per * o.days) + '</b>' : '');
+      b.innerHTML = '<span><b>' + o.label + '</b><small>' + (to ? 'to about ' + fmt(to) : '') + '</small></span><span class="usdv">' + price + '</span>';
       b.addEventListener('click', () => opts.querySelectorAll('.opt').forEach(x => x.setAttribute('aria-checked', x === b ? 'true' : 'false')));
       opts.appendChild(b);
     });

@@ -172,7 +172,9 @@ footer .mono{font-size:11px}
 .opt[aria-checked="true"]{border-color:var(--primary);background:var(--primary-soft)}
 .opt b{font-weight:600;font-size:14px;display:block}
 .opt small{color:var(--muted);font-size:12px}
-.opt .usdv{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.opt .usdv{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.opt .usdv b{font-weight:600;font-size:13px}
+.opt .usdv small{display:block;font-family:var(--ui);margin-top:1px}
 .sheet .note{font-size:12px;color:var(--muted);margin:12px 0 0}
 .sheet .note button{border:0;background:transparent;padding:0;color:var(--primary);text-decoration:underline;cursor:pointer;font-size:12px}
 .sheet .go{margin-top:14px;width:100%}

@@ -61,14 +61,15 @@ Add `&bare=1` to hide the demo bar (that is how the screenshots above were taken
 | Pill: Paid, Expiring soon, Expired | `status`, plus the page rule "14 days or less" | `remainingBalance`, contract state, `BatchCreated` history |
 | The bar: one block per month, from creation to the end | `created.time`, `expiry.*`, `chain.blockTime` | `BatchCreated` block time, the expiry above |
 | Keepers ranking, days and dollars per address | `contributions[]` | `BatchCreated` and every `BatchTopUp`, payer from the transaction |
-| "Keep it alive: 30 days from about $1.37" and the Add time prices | `pricing.usdPerDay` | `lastPrice()`, depth, a BZZ to USD rate |
+| "Keep it alive: 30 days from about $1.37" | `pricing.usdPerDay` | `lastPrice()`, depth, a BZZ to USD rate |
+| Add time sheet: ≈ 34.2 BZZ per option, ≈ $1.37 underneath | `pricing.bzzPerDay`, `pricing.usdPerDay` | `lastPrice()` and depth; the dollars add a BZZ to USD rate |
 | Batch ID, owner, depth, immutable | `batchId`, `owner`, `depth`, `immutable` | `BatchCreated`, `BatchDepthIncrease` |
 | Storage capacity, 7.7 GB usable | `capacity` | effective volume table for the depth (not on chain) |
 | Created 09/10/2026, #44108210 | `created.*` | `BatchCreated` log |
 | Block #44213870, balance read N s ago | `chain.block`, `chain.blockTime` | the block both reads were pinned to |
 | Footer: RPC and contract | `chain.rpc`, `chain.contract` | your configuration |
 
-The page never shows BZZ or PLUR amounts. The API does not need to return them either.
+BZZ appears in one place only: the Add time sheet, where each duration shows its estimate in BZZ with the dollar equivalent underneath. Everywhere else the page shows dollars, and it never shows PLUR.
 
 ---
 
@@ -148,7 +149,7 @@ The full schema with descriptions is [`api/stamp.schema.json`](api/stamp.schema.
     "latest": "2026-12-31T12:00:00Z",
     "lastBlock": null
   },
-  "pricing": { "usdPerDay": 0.0456 },
+  "pricing": { "bzzPerDay": 1.14, "usdPerDay": 0.0456 },
   "contributions": [
     { "kind": "created", "address": "0x1F3a…9bC4", "time": "2026-10-09T09:14:25Z", "block": 44108210, "tx": "0xe062…", "days": 53, "usd": 2.5 },
     { "kind": "topup",   "address": "0x8b4E…41e2", "time": "2026-10-12T17:41:05Z", "block": 44166123, "tx": "0x77e7…", "days": 26, "usd": 1.2 }
@@ -163,7 +164,8 @@ The full schema with descriptions is [`api/stamp.schema.json`](api/stamp.schema.
 | `chain.block`, `chain.blockTime` | Pin **both** live reads (`remainingBalance` and `lastPrice`) to the same block, and send that block's timestamp. The page uses `blockTime` as "now". |
 | `expiry.time` | Most likely end. For `expired`, when it ran out, or `null` if you cannot reconstruct it. |
 | `expiry.earliest`, `expiry.latest` | The range shown as "give or take". `null` when expired. The page also fades the end of the bar across it. |
-| `pricing.usdPerDay` | Cost of one more day for the whole stamp at today's price. `null` hides every dollar figure. |
+| `pricing.bzzPerDay` | Cost of one more day for the whole stamp at today's price, in BZZ. From the chain alone. Shown only in the Add time sheet. |
+| `pricing.usdPerDay` | The same in USD. `null` hides every dollar figure; the sheet then shows BZZ alone. |
 | `contributions[]` | One entry per event that paid for time, oldest first: the `BatchCreated`, then each `BatchTopUp`. Do not group them. The page groups by address into keepers. |
 | `contributions[].days` | Days of storage that payment bought, at the price in force at its block. Fractions are fine. |
 | `contributions[].usd` | Value of that payment at the time, or `null`. |
@@ -266,7 +268,8 @@ const address = tx.from
 ### 3. Pricing
 
 ```ts
-const usdPerDay = Number(price) * 2 ** depth * 17280 / 1e16 * bzzUsd
+const bzzPerDay = Number(price) * 2 ** depth * 17280 / 1e16   // PLUR per chunk per block, times chunks, times blocks a day
+const usdPerDay = bzzUsd == null ? null : bzzPerDay * bzzUsd
 ```
 
 ### 4. Status, and expired versus never existed
@@ -292,7 +295,7 @@ You do not need to build any of this, but it explains the load the API will see.
 
 - **On load:** one `GET`. While it waits, a skeleton with "Reading Gnosis…".
 - **While open:** it ticks the block number every 5 s locally, and re reads the API once per price round (760 s).
-- **Add time:** opens a sheet with 30 days, 6 months and 1 year, priced from `pricing.usdPerDay` and dated from `expiry.time`. On "Continue to Beeport" it re reads the API (the stamp is checked on chain before the visitor leaves), then opens Beeport in a new tab.
+- **Add time:** opens a sheet with 30 days, 6 months and 1 year, each priced in BZZ from `pricing.bzzPerDay` with the dollar equivalent from `pricing.usdPerDay` underneath, and dated from `expiry.time`. On "Continue to Beeport" it re reads the API (the stamp is checked on chain before the visitor leaves), then opens Beeport in a new tab.
 - **Waiting for the top up:** polls the API every 10 s for up to 10 minutes, until `expiry.time` moves later. Then it plays the new time arriving and marks the new contribution as **You**. It survives a reload through `sessionStorage`.
 - **New time arriving:** whenever a render brings contributions that were not on screen before (after Beeport, on the periodic re read, or on a reload), the page plays one short sequence instead of jumping. The number counts up to the new total, the months already on the bar glide narrower to make room and the new months settle in at the end, and the new keeper appears on the open slot it took and rises over the list to its rank as a card, while the other rows slide down. With reduced motion it only fades the new row in.
 - **What changed since your last visit:** the page keeps the last version of each stamp it showed in `localStorage`, only to know what is new on a reload. It shows that version for half a second, then plays the sequence above with a short note ("Since you last looked, 181 days were added"). Nothing leaves the browser, and without storage the page simply shows the current state. In the demo, open `?demo=active` and then `?demo=topped` to see it.
@@ -332,7 +335,7 @@ On Swarm itself, upload `public/` as a website with `index.html` as both the ind
 
 These came out of the research and the design rounds. Please keep them when you touch copy or add fields.
 
-1. **No BZZ or PLUR on screen.** USD only, always labelled as an estimate.
+1. **BZZ only in the Add time sheet.** There, each duration shows its BZZ estimate with the dollar equivalent underneath. Everywhere else, dollars only, always labelled as an estimate. Never PLUR.
 2. **The end is an estimate.** Always "about" a date, with a range. Never a fixed date or a countdown in hours.
 3. **No promises the chain cannot back.** No "forever", no node counts, no SLA. The pill says **Paid**, not "Alive" or "Operational": the chain proves payment, not serving.
 4. **Adding time extends the whole stamp, for everyone.** Anyone can do it, and it does not change the owner.
@@ -363,9 +366,9 @@ These came out of the research and the design rounds. Please keep them when you 
 - [ ] An id that never existed: `200`, `"status": "not_found"`.
 - [ ] A batch that ran out but is still in state: `expired`, with `expiry.time`.
 - [ ] A batch that ran out and was removed: `expired`, from the event history.
-- [ ] A diluted batch (`BatchDepthIncrease`): `depth`, `capacity` and `usdPerDay` use the current depth; past `days` use the depth at their block.
+- [ ] A diluted batch (`BatchDepthIncrease`): `depth`, `capacity`, `bzzPerDay` and `usdPerDay` use the current depth; past `days` use the depth at their block.
 - [ ] A batch with many top ups from the same address: one row on the page, days summed.
-- [ ] No USD rate: `usdPerDay` and every `usd` are `null`; the page hides dollars.
+- [ ] No USD rate: `usdPerDay` and every `usd` are `null`; the page hides dollars and the Add time sheet shows BZZ alone.
 - [ ] A one or two day batch (common on Swarm): one block on the bar, mostly fade. Looks right.
 - [ ] A five year batch: about sixty thin blocks. Readable on desktop, a texture on a phone. Acceptable for v1.
 - [ ] RPC down: the API answers `5xx`; the page shows "Could not read the stamp" with a retry.

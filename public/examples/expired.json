@@ -24,6 +24,7 @@
     "lastBlock": 45475310
   },
   "pricing": {
+    "bzzPerDay": null,
     "usdPerDay": null
   },
   "contributions": [
