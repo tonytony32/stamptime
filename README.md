@@ -2,7 +2,9 @@
 
 A public page for one Swarm postage stamp. It answers one question for anyone who lands on it, **how long is this paid for?**, shows who has been keeping it alive, and offers a way for anyone to interact with the stamp.
 
-It is meant to live at `ethswarm.org/stamp/<batchId>`, served by the Swarm Foundation as a service, for any stamp on the network.
+Its ideal place is `ethswarm.org/stamp/<batchId>`, served by the Swarm Foundation as a service, for any stamp on the network. Any other place where Swarm's tooling is presented works just as well.
+
+It stands on the great work of [Batch Explorer](https://batch-explorer.github.io/): the page borrows its look, and sends anyone who wants every event of a batch there.
 
 <p>
   <img src="docs/screenshot-mobile.png" alt="Stamptime on a phone: 73 days left, the month bar, the keepers ranking" width="300">
@@ -18,7 +20,7 @@ It is meant to live at `ethswarm.org/stamp/<batchId>`, served by the Swarm Found
 - **The page is done.** It lives in `public/`: one HTML file, one CSS file, one JS file. No build step, no framework, no dependencies.
 - **It renders everything from one JSON document per stamp.** The bar, the ranking, the four states, the Add time sheet, waiting for a top up to land: all of that is already in `public/stamp.js`.
 - **What we need from you is the data and a place to serve it:**
-  1. An endpoint `GET /api/v1/stamps/{batchId}` that returns that JSON. The contract is [`api/stamp.schema.json`](api/stamp.schema.json), with five real examples in [`public/examples/`](public/examples/).
+  1. An endpoint `GET /api/v1/stamps/{batchId}` that returns that JSON. The contract is [`api/stamp.schema.json`](api/stamp.schema.json), with one example per state in [`public/examples/`](public/examples/).
   2. Somewhere on ethswarm.org that serves `public/` at `/stamp/{batchId}`.
 - **Everything you need to compute the JSON from Gnosis** is in [How to compute each field](#how-to-compute-each-field), with viem snippets.
 - **A few decisions are still open** and are listed in [Open questions](#open-questions). None of them blocks starting.
@@ -46,7 +48,7 @@ Then open one of these. The demo reads `public/examples/<name>.json` instead of 
 | http://localhost:8080/?demo=loading | The page while it waits for the API |
 | http://localhost:8080/?demo=error | The API did not answer |
 
-In the `active` demo, press **Take it** or **Add time**, then **Continue to Beeport**. The page shows the waiting state, then plays the top up arriving: the new months add up one by one at the end of the bar and you appear at the top of the ranking. In production the same code opens Beeport in a new tab and polls the API until the new expiry shows up.
+In the `active` demo, press **Take it** or **Add time**, then **Continue to Beeport**. The page shows the waiting state, then plays the top up arriving: the new months add up one by one at the end of the bar and you appear at the top of the ranking. In production the same code opens Beeport in a new tab and polls the API until the new top up shows up.
 
 Add `&bare=1` to hide the demo bar (that is how the screenshots above were taken).
 
@@ -109,7 +111,8 @@ GET /api/v1/stamps/{batchId}
 ```
 
 - `batchId`: 64 hex characters, with or without `0x`, any case. Normalise to lower case without `0x` in the response.
-- Always answer **200** with a JSON body, including for a stamp that does not exist (`"status": "not_found"`). The page also accepts a 404 whose body says `not_found`, but any other 404 is treated as "the API is not where I expected", which shows the error state, not "no stamp".
+- Always answer **200** with a JSON body, including for a stamp that does not exist (`{"batchId": "<the id>", "status": "not_found"}`). The page also accepts a 404 with that same body, but any other 404 is treated as "the API is not where I expected", which shows the error state, not "no stamp".
+- The page checks each document against this contract before drawing it. One that does not match the schema, or carries another `batchId` than the one asked for, shows the error state, with the reason in the browser console.
 - `400` for a malformed id. The page validates the id before calling, so this should not happen from the page.
 - Headers: `Content-Type: application/json`, `Access-Control-Allow-Origin: *` (the badge will call it from other sites), `Cache-Control: public, max-age=15`.
 
@@ -157,15 +160,16 @@ The full schema with descriptions is [`api/stamp.schema.json`](api/stamp.schema.
 }
 ```
 
-(Hashes shortened here; the files have them in full. The example values are illustrative, the contract address is the real one.)
+(Hashes and addresses shortened here; the files have them in full. The example values are illustrative, the contract address is the real one.)
 
 | Field | Notes |
 |---|---|
 | `chain.block`, `chain.blockTime` | Pin **both** live reads (`remainingBalance` and `lastPrice`) to the same block, and send that block's timestamp. The page uses `blockTime` as "now". |
-| `expiry.time` | Most likely end. For `expired`, when it ran out, or `null` if you cannot reconstruct it. |
+| `owner` | The batch owner. The ranking labels this address **Owner**, whoever paid for the `BatchCreated`. |
+| `expiry.time` | Most likely end, always present for `active`. For `expired`, when it ran out, or `null` if you cannot reconstruct it. |
 | `expiry.earliest`, `expiry.latest` | The range shown as "give or take". `null` when expired. The page also fades the end of the bar across it. |
 | `pricing.bzzPerDay` | Cost of one more day for the whole stamp at today's price, in BZZ. From the chain alone. Shown only in the Add time sheet. |
-| `pricing.usdPerDay` | The same in USD. `null` hides every dollar figure; the sheet then shows BZZ alone. |
+| `pricing.usdPerDay` | The same in USD. `null` hides the "from about $" line and the dollars in the Add time sheet, which then shows BZZ alone. The keepers' dollars come from each `contributions[].usd`. |
 | `contributions[]` | One entry per event that paid for time, oldest first: the `BatchCreated`, then each `BatchTopUp`. Do not group them. The page groups by address into keepers. |
 | `contributions[].days` | Days of storage that payment bought, at the price in force at its block. Fractions are fine. |
 | `contributions[].usd` | Value of that payment at the time, or `null`. |
@@ -293,32 +297,35 @@ Send a label such as `"7.7 GB"`. Take it from the effective volume table in the 
 
 You do not need to build any of this, but it explains the load the API will see.
 
-- **On load:** one `GET`. While it waits, a skeleton with "Reading Gnosis…".
-- **While open:** it ticks the block number every 5 s locally, and re reads the API once per price round (760 s).
-- **Add time:** opens a sheet with 30 days, 6 months and 1 year, each priced in BZZ from `pricing.bzzPerDay` with the dollar equivalent from `pricing.usdPerDay` underneath, and dated from `expiry.time`. On "Continue to Beeport" it re reads the API (the stamp is checked on chain before the visitor leaves), then opens Beeport in a new tab.
-- **Waiting for the top up:** polls the API every 10 s for up to 10 minutes, until `expiry.time` moves later. Then it plays the new time arriving and marks the new contribution as **You**. It survives a reload through `sessionStorage`.
+- **On load:** one `GET`. While it waits, a skeleton with "Reading Gnosis…". A request that gets no answer in 10 s shows the error state, with a retry.
+- **While open:** it ticks the block number every 5 s locally, and re reads the API once per price round (760 s). It skips the re read while waiting for a top up.
+- **Add time:** opens a sheet with 30 days, 6 months and 1 year, each priced in BZZ from `pricing.bzzPerDay` with the dollar equivalent from `pricing.usdPerDay` underneath, and dated from `expiry.time`. On "Continue to Beeport" it re reads the API, so the stamp is checked again before the visitor leaves, then opens Beeport in a new tab. If the API does not answer within 4 s it hands off with the last read: the chain itself refuses a top up on a batch that ran out.
+- **Waiting for the top up:** polls the API every 10 s for up to 10 minutes (if the visitor is still on another tab by then, once more when they come back), until a contribution appears that was not there at hand off. That one is marked as **You**, and the note says how many days it bought. A later `expiry.time` alone does not count: a missed slot or a price change moves it too. The new time plays when the visitor is back on the page's tab. The wait survives a reload or a return in the same tab through `sessionStorage`; if the top up landed meanwhile, the page says "Your top up landed" instead of waiting again.
 - **New time arriving:** whenever a render brings contributions that were not on screen before (after Beeport, on the periodic re read, or on a reload), the page plays one short sequence instead of jumping. The number counts up to the new total, the months already on the bar glide narrower to make room and the new months settle in at the end, and the new keeper appears on the open slot it took and rises over the list to its rank as a card, while the other rows slide down. With reduced motion it only fades the new row in.
 - **What changed since your last visit:** the page keeps the last version of each stamp it showed in `localStorage`, only to know what is new on a reload. It shows that version for half a second, then plays the sequence above with a short note ("Since you last looked, 181 days were added"). Nothing leaves the browser, and without storage the page simply shows the current state. In the demo, open `?demo=active` and then `?demo=topped` to see it.
 - **Expiring soon:** the page shows it at 14 days or less. It is not an API status.
-- **Ranking:** groups `contributions` by address, sums days and dollars, sorts by days given. The owner row says "Owner, created the stamp". There is always an open slot at the end: "Keep it alive: 30 days from about $1.37".
-- **Configuration** lives in two meta tags in `index.html`:
+- **Ranking:** groups `contributions` by address, sums days and dollars, sorts by days given. The row of the `owner` address is labelled Owner, whoever paid for `BatchCreated` ("Owner, created the stamp" when it was the owner); a creator who is not the owner reads "Created the stamp". While the stamp is paid there is an open slot at the end: "Keep it alive: 30 days from about $1.37, any wallet".
+- **Configuration** lives in two meta tags in `index.html`. In the Beeport template, `{id}` becomes the batch id and `{days}`, if present, the number of days picked in the sheet (30, 182 or 365), for when Beeport accepts a duration. The "Create another" tile links to Beeport's home directly; change it too if you move Beeport.
 
 ```html
 <meta name="stamptime-api" content="/api/v1">
 <meta name="stamptime-beeport" content="https://beeport.eth.limo/?topup={id}">
 ```
 
+`index.html` also sets a Content-Security-Policy that runs only scripts from the page's own origin (`script-src 'self'`), so no inline script or markup in the data can run. If your host injects scripts of its own, add their origin there, or a hash of the script for an inline one.
+
 ---
 
 ## Serving it
 
-**The page.** Serve the contents of `public/` under `/stamp/`, and send every `/stamp/{batchId}` to `index.html`. Assets are referenced relatively (`./stamp.css`, `./stamp.js`), so they must sit next to `index.html` under `/stamp/`. The page reads the id from the last path segment, or from `?id=` as a fallback that works on any static host.
+**The page.** Serve the contents of `public/` under `/stamp/`, and send every `/stamp/{batchId}` to `index.html`. Assets are referenced relatively (`./stamp.css`, `./stamp.js`), so they must sit next to `index.html` under `/stamp/`, and `/stamp/{batchId}/` with a trailing slash must redirect to `/stamp/{batchId}`. The page reads the id from `?id=` when present, which works on any static host, and otherwise from the last path segment.
 
 With nginx, assuming `public/` is deployed as `/srv/stamptime/stamp/`:
 
 ```nginx
 location /stamp/ {
   root /srv/stamptime;
+  rewrite ^(/stamp/[^/]+)/$ $1 permanent;
   try_files $uri /stamp/index.html;
 }
 ```
@@ -339,7 +346,7 @@ These came out of the research and the design rounds. Please keep them when you 
 2. **The end is an estimate.** Always "about" a date, with a range. Never a fixed date or a countdown in hours.
 3. **No promises the chain cannot back.** No "forever", no node counts, no SLA. The pill says **Paid**, not "Alive" or "Operational": the chain proves payment, not serving.
 4. **Adding time extends the whole stamp, for everyone.** Anyone can do it, and it does not change the owner.
-5. **No wallet, account or cookie to read the page.** A wallet appears only after "Continue to Beeport". The only thing stored is the last version of the stamp shown, in this browser, to animate what changed.
+5. **No wallet, account or cookie to read the page.** A wallet appears only after "Continue to Beeport". Nothing leaves the browser: it keeps the last version of each stamp shown, to animate what changed, and, for the life of the tab, a pending top up and which contribution was yours.
 6. **No fill level.** Batch utilisation is not on chain, so the page does not show how full a stamp is.
 7. **Batch Explorer is the pro view.** The page links to it for every event and does not try to replace it.
 8. **The page is agnostic.** It is a Swarm page about a stamp. It never names or brands what is stored in it.
@@ -362,7 +369,7 @@ These came out of the research and the design rounds. Please keep them when you 
 
 ## Edge cases to test
 
-- [ ] Malformed id in the URL: the page shows "No stamp with this id" without calling the API.
+- [ ] Malformed id in the URL, given with `?id=` or as a path segment that looks like a hash: the page shows "No stamp with this id" without calling the API. A trailing `.` or `)` picked up when the link was pasted is ignored.
 - [ ] An id that never existed: `200`, `"status": "not_found"`.
 - [ ] A batch that ran out but is still in state: `expired`, with `expiry.time`.
 - [ ] A batch that ran out and was removed: `expired`, from the event history.

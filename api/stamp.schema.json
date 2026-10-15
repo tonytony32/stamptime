@@ -27,7 +27,7 @@
         "blockTime": { "description": "Timestamp of that block, ISO 8601 UTC. The page uses it as 'now' for the bar and the days left.", "type": "string", "format": "date-time" }
       }
     },
-    "owner": { "description": "Batch owner, from BatchCreated (or batches(id) while the batch is in state). Checksummed.", "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "owner": { "description": "Batch owner, from BatchCreated (or batches(id) while the batch is in state). Checksummed. The ranking labels this address Owner, whoever paid for BatchCreated.", "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
     "depth": { "description": "Current batch depth, after any BatchDepthIncrease.", "type": "integer", "minimum": 17, "maximum": 41 },
     "immutable": { "description": "immutableFlag from BatchCreated.", "type": "boolean" },
     "capacity": { "description": "Usable capacity for this depth and immutability, as a human label, for example '7.7 GB'. Take it from the effective volume table in the Swarm docs. Do not compute 2^depth x 4 KB: that is the theoretical maximum and overstates what fits.", "type": "string" },
@@ -44,7 +44,7 @@
       "type": "object",
       "required": ["time"],
       "properties": {
-        "time": { "description": "active: most likely end, blockTime + (remainingBalance / currentPrice) x 5 s. expired: when the balance ran out, or null if it cannot be reconstructed.", "type": ["string", "null"], "format": "date-time" },
+        "time": { "description": "active: most likely end, blockTime + (remainingBalance / currentPrice) x 5 s, never null. expired: when the balance ran out, or null if it cannot be reconstructed.", "type": ["string", "null"], "format": "date-time" },
         "earliest": { "description": "active: end if the price rose to the highest price of the last 30 days. null when expired.", "type": ["string", "null"], "format": "date-time" },
         "latest": { "description": "active: end if the price fell to the lowest price of the last 30 days. null when expired.", "type": ["string", "null"], "format": "date-time" },
         "lastBlock": { "description": "expired: the block at which the balance ran out, if known. null when active.", "type": ["integer", "null"] }
@@ -54,7 +54,7 @@
       "type": "object",
       "properties": {
         "bzzPerDay": { "description": "What one more day of this whole stamp costs today, in BZZ: currentPrice x 2^depth x 17280 blocks / 1e16. Comes from the chain alone, no exchange rate. Shown only in the Add time sheet, next to the dollar equivalent. null when expired.", "type": ["number", "null"], "minimum": 0 },
-        "usdPerDay": { "description": "What one more day of this whole stamp costs today, in USD: bzzPerDay x BZZ/USD. null if no USD rate is available; the page then hides dollar figures. Drives the 'from about $' line, the keepers' dollars and the equivalent under each BZZ amount in the Add time sheet.", "type": ["number", "null"], "minimum": 0 }
+        "usdPerDay": { "description": "What one more day of this whole stamp costs today, in USD: bzzPerDay x BZZ/USD. null if no USD rate is available; the page then hides these dollar figures. Drives the 'from about $' line and the equivalent under each BZZ amount in the Add time sheet. The keepers' dollars come from contributions[].usd instead.", "type": ["number", "null"], "minimum": 0 }
       }
     },
     "contributions": {
@@ -79,6 +79,10 @@
     {
       "if": { "properties": { "status": { "enum": ["active", "expired"] } } },
       "then": { "required": ["chain", "owner", "depth", "immutable", "capacity", "created", "expiry", "contributions"] }
+    },
+    {
+      "if": { "properties": { "status": { "const": "active" } } },
+      "then": { "properties": { "expiry": { "properties": { "time": { "type": "string" } } } } }
     }
   ]
 }
