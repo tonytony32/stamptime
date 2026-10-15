@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stamptime</title>
+<meta name="description" content="A Swarm postage stamp: paid until a date, verifiable on chain, renewable by anyone.">
+<!-- Where the page reads the stamp from: GET {stamptime-api}/stamps/{batchId}. See README.md and api/stamp.schema.json. -->
+<meta name="stamptime-api" content="/api/v1">
+<!-- Where "Add time" hands off to. {id} is replaced by the batch id. -->
+<meta name="stamptime-beeport" content="https://beeport.eth.limo/?topup={id}">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="./stamp.css">
+</head>
+<body class="state-loading" id="body">
+
+<div class="devbar" id="devbar" hidden aria-label="Demo controls">
+  <span>Demo, example data:</span>
+  <button type="button" data-demo="active">Paid</button>
+  <button type="button" data-demo="topped">After top up</button>
+  <button type="button" data-demo="expiring">Expiring soon</button>
+  <button type="button" data-demo="expired">Expired</button>
+  <button type="button" data-demo="not_found">Not found</button>
+  <button type="button" data-demo="loading">Loading</button>
+  <button type="button" data-demo="error">API down</button>
+</div>
+
+<header class="hdr">
+  <div>
+    <span class="wm">Swarm <small>Stamptime</small></span>
+    <span class="blk"><i></i><span>Block #<b id="hdrBlock">&hellip;</b></span></span>
+  </div>
+</header>
+
+<main>
+  <section class="card notice" id="notice" hidden aria-live="polite"></section>
+
+  <section class="card meter" aria-label="Time left">
+    <h2><span class="stampid">Postage stamp <span class="mono" id="stampShort">&hellip;</span></span> <span class="pill" id="pill">Reading</span></h2>
+    <div class="num"><span id="days">00</span><small id="daysLabel">days left</small></div>
+    <div class="until" id="until">Reading Gnosis&hellip;</div>
+    <div class="seg" id="seg" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="stripcap"><span id="startCap">Created</span><span id="endCap"></span></div>
+    <div class="waiting" id="waiting" hidden><i></i><span id="waitingText">Waiting for Gnosis to confirm your top up. Usually under a minute.</span></div>
+  </section>
+
+  <div class="side">
+  <section class="card keepers" aria-labelledby="keepH">
+    <h2 id="keepH">Keepers <span class="cap">by days given</span></h2>
+    <ol class="rank" id="rank"><li><span class="pos"></span><span class="who">Reading the history&hellip;</span><span class="amt"></span></li></ol>
+  </section>
+
+  <nav class="grid" aria-label="What you can do with this stamp">
+    <button type="button" id="addBtn" disabled>Add time<small id="addSub">Extend with any wallet</small></button>
+    <a href="https://beeport.eth.limo/" target="_blank" rel="noopener">Create another<small>a new stamp</small></a>
+    <a id="eventsLink" href="https://batch-explorer.github.io/" target="_blank" rel="noopener">See every event<small>Batch Explorer</small></a>
+    <a id="contractLink" href="https://gnosisscan.io" target="_blank" rel="noopener">Read the contract<small>Gnosisscan</small></a>
+  </nav>
+  </div>
+
+  <section class="card details" aria-labelledby="detH">
+    <h2 id="detH">Stamp details</h2>
+    <dl class="rows">
+      <div class="row"><dt>Batch ID</dt><dd><span id="batchId">&hellip;</span> <button class="copy" type="button" data-copy="batch" aria-label="Copy batch id"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></dd></div>
+      <div class="row"><dt>Owner</dt><dd><a class="lnk" id="ownerLink" href="https://gnosisscan.io" target="_blank" rel="noopener">&hellip;</a> <button class="copy" type="button" data-copy="owner" aria-label="Copy owner address"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></dd></div>
+      <div class="row"><dt>Storage capacity</dt><dd><span id="capacity">&hellip;</span> <span class="ui" style="color:var(--muted)">usable</span></dd></div>
+      <div class="row"><dt>Depth</dt><dd id="depth">&hellip;</dd></div>
+      <div class="row"><dt>Immutable</dt><dd id="immutable">&hellip;</dd></div>
+      <div class="row"><dt>Created</dt><dd id="createdRow">&hellip;</dd></div>
+      <div class="row"><dt>Expiry</dt><dd id="expiryRow">&hellip;</dd></div>
+      <div class="row"><dt>Balance read</dt><dd><span class="chip" id="readBlock">&hellip;</span> <span class="ui" style="color:var(--muted)" id="readLine"></span></dd></div>
+    </dl>
+    <details id="what">
+      <summary>What is a postage stamp?</summary>
+      <p>It buys space on Swarm for a stretch of time. Every five seconds a block goes by and the stamp pays for one more. When it runs dry, the network stops keeping what it covers. What is in it is the uploader's business; that it is paid is everyone's. <a href="https://docs.ethswarm.org/docs/concepts/incentives/postage-stamps" target="_blank" rel="noopener" style="color:var(--primary)">How postage stamps work</a>.</p>
+      <div class="warn" id="nervous">Nobody is obliged to keep it paid. Anyone can add time; the owner stays the owner.</div>
+    </details>
+    <details id="why">
+      <summary>Why the date moves</summary>
+      <p>Storage is paid per block at a price the network sets. The days left are the balance on this stamp divided by today's price. The price can change at most once every 152 blocks, so the date moves a little as the price moves, and never without a reason you can check on chain. The range uses the lowest and highest price of the last 30 days.</p>
+    </details>
+    <details id="embed">
+      <summary>Embed its badge</summary>
+      <p>The badge reads the same data and links here. Every stamp on Swarm has a page at ethswarm.org/stamp/&lt;id&gt;.</p>
+      <span class="badge"><i></i>Swarm storage <small>paid until <span id="badgeDate">&hellip;</span></small></span>
+      <code class="code" id="badgeCode"></code>
+      <p>And a donate button. It sends to the stamp's owner, <span class="mono" style="color:var(--ink)" id="donateOwner">&hellip;</span>, from any wallet; it does not add time to the stamp by itself. The owner decides what to do with it.</p>
+      <span class="badge"><i></i>Donate <small>to the owner, any wallet</small></span>
+      <code class="code" id="donateCode"></code>
+    </details>
+  </section>
+</main>
+
+<footer>
+  <div>
+    RPC: <span class="mono" id="rpc">&hellip;</span><br>
+    Contract: <span class="mono" id="contract">&hellip;</span><br>
+    Block <span class="mono" id="footBlock">&hellip;</span> <span id="beatLine"></span>
+  </div>
+  <div>
+    <a href="https://gnosisscan.io" target="_blank" rel="noopener">Gnosisscan</a> &nbsp;
+    <a href="https://batch-explorer.github.io/" target="_blank" rel="noopener">Batch Explorer</a> &nbsp;
+    <a href="https://docs.ethswarm.org" target="_blank" rel="noopener">Docs</a>
+  </div>
+</footer>
+
+<div class="scrim" id="scrim" hidden></div>
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheetH">
+  <div>
+    <h2 id="sheetH">Add time</h2>
+    <p id="sheetLead">Extends the whole stamp for everyone who uses it. It does not make it yours.</p>
+    <div class="opts" id="opts" role="radiogroup" aria-label="Duration"></div>
+    <p class="note">Storage duration is approximate and prices are today's estimate in USD. Beeport is Swarm's checkout: it shows the final price, the chain and the fee before you sign, from a wallet you already have on Gnosis, Ethereum or other chains. The stamp is checked on chain before you leave this page.</p>
+    <p class="note">If Beeport cannot take the id from here, <button type="button" data-copy="batch">copy it</button> and paste it into Beeport's Top up.</p>
+    <button class="btn primary go" id="go" type="button">Continue to Beeport</button>
+    <button class="cancel" id="cancel" type="button">Cancel</button>
+  </div>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="./stamp.js"></script>
+</body>
+</html>
