@@ -91,6 +91,7 @@
   const formatNumericDate = date => date.toLocaleDateString('en-GB');                                                // 27/12/2026
   const formatUsd = n => '$' + (n < 10 ? n.toFixed(2) : Math.round(n).toLocaleString('en-US'));
   const formatBzz = n => (n < 100 ? n.toFixed(1) : Math.round(n).toLocaleString('en-US')) + ' BZZ';
+  const formatBzzPrice = n => Number(n.toPrecision(3)).toLocaleString('en-US') + ' BZZ';                           // 1.14 BZZ, 0.174 BZZ
   const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
   const formatDays = days => Math.round(days) < 1 ? 'under a day' : plural(Math.round(days), 'day');
   // The head and tail of a hash, which is how people check one: 0x1F3a…9bC4
@@ -339,7 +340,7 @@
         : html`Ran out. Time can no longer be added to it.`;
     }
     const range = view.giveOrTake ? ', give or take ' + plural(view.giveOrTake, 'day') : '';
-    return html`Paid until about <b>${formatDate(view.end)}</b>${range}, at today's price.`;
+    return html`Paid until about <b>${formatDate(view.end)}</b>${range}, at today's storage price.`;
   }
 
   // The bar: the whole life of the stamp, one block per month, always filling the width. Spent time veiled,
@@ -471,6 +472,11 @@
     const createdBlock = externalLink(GNOSISSCAN + '/block/' + stamp.created.block, '#' + stamp.created.block, 'chip');
     $('createdRow').innerHTML = html`${formatNumericDate(view.created)} ${createdBlock}`;
     $('expiryRow').innerHTML = expiryRow(view);
+    const { bzzPerDay } = stamp.pricing || {};
+    $('balanceRow').innerHTML = balanceRow(view, bzzPerDay);
+    $('priceRow').innerHTML = bzzPerDay
+      ? html`${formatBzzPrice(bzzPerDay)} <span class="ui">a day at this size, set by the network</span>`
+      : html`<span class="ui">not read</span>`;
     $('rpc').textContent = stamp.chain.rpc || '';
     $('contract').textContent = stamp.chain.contract;
     $('eventsLink').href = BATCH_EXPLORER + stamp.batchId;
@@ -490,11 +496,20 @@
         : html`<span class="ui">ran out</span>`;
     }
     const range = view.giveOrTake ? 'give or take ' + plural(view.giveOrTake, 'day') + ', ' : '';
-    return html`about ${formatNumericDate(view.end)} <span class="ui">${range}at today's price</span>`;
+    return html`about ${formatNumericDate(view.end)} <span class="ui">${range}at today's storage price</span>`;
+  }
+
+  // What is left on the stamp: a day at today's price times the days left, which is remainingBalance x 2^depth at
+  // the same block. Divided by the Storage price row it gives back the expiry.
+  function balanceRow(view, bzzPerDay) {
+    if (view.expired) return html`0 BZZ <span class="ui">ran out</span>`;
+    return bzzPerDay
+      ? html`${formatBzz(bzzPerDay * daysBetween(view.now, view.end))} <span class="ui">left on the stamp</span>`
+      : html`<span class="ui">not read</span>`;
   }
 
   // The Add time sheet: three durations, each counted from the current end and priced at today's price.
-  // The only place on the page that shows BZZ, always with its dollar equivalent underneath.
+  // Each BZZ amount has its dollar equivalent underneath.
   function renderSheet(stamp, view) {
     const options = $('opts');
     const hadFocus = options.contains(document.activeElement);

@@ -68,10 +68,12 @@ Add `&bare=1` to hide the demo bar (that is how the screenshots above were taken
 | Batch ID, owner, depth, immutable | `batchId`, `owner`, `depth`, `immutable` | `BatchCreated`, `BatchDepthIncrease` |
 | Storage capacity, 7.7 GB usable | `capacity` | effective volume table for the depth (not on chain) |
 | Created 09/10/2026, #44108210 | `created.*` | `BatchCreated` log |
+| Balance, 83.2 BZZ left on the stamp | `pricing.bzzPerDay` times the days from `chain.blockTime` to `expiry.time` | `remainingBalance(id)` x 2^depth / 1e16 |
+| Storage price, 1.14 BZZ a day at this size | `pricing.bzzPerDay` | `lastPrice()` and depth |
 | Block #44213870, balance read N s ago | `chain.block`, `chain.blockTime` | the block both reads were pinned to |
 | Footer: RPC and contract | `chain.rpc`, `chain.contract` | your configuration |
 
-BZZ appears in one place only: the Add time sheet, where each duration shows its estimate in BZZ with the dollar equivalent underneath. Everywhere else the page shows dollars, and it never shows PLUR.
+BZZ appears in two places: Stamp details, where Balance and Storage price let anyone divide one by the other and get the expiry back, and the Add time sheet, where each duration shows its estimate in BZZ with the dollar equivalent underneath. Everywhere else the page shows dollars, and it never shows PLUR.
 
 ---
 
@@ -168,7 +170,7 @@ The full schema with descriptions is [`api/stamp.schema.json`](api/stamp.schema.
 | `owner` | The batch owner. The ranking labels this address **Owner**, whoever paid for the `BatchCreated`. |
 | `expiry.time` | Most likely end, always present for `active`. For `expired`, when it ran out, or `null` if you cannot reconstruct it. |
 | `expiry.earliest`, `expiry.latest` | The range shown as "give or take". `null` when expired. The page also fades the end of the bar across it. |
-| `pricing.bzzPerDay` | Cost of one more day for the whole stamp at today's price, in BZZ. From the chain alone. Shown only in the Add time sheet. |
+| `pricing.bzzPerDay` | Cost of one more day for the whole stamp at today's price, in BZZ. From the chain alone. Shown in Stamp details as the Storage price and, times the days left, as the Balance, and in the Add time sheet. |
 | `pricing.usdPerDay` | The same in USD. `null` hides the "from about $" line and the dollars in the Add time sheet, which then shows BZZ alone. The keepers' dollars come from each `contributions[].usd`. |
 | `contributions[]` | One entry per event that paid for time, oldest first: the `BatchCreated`, then each `BatchTopUp`. Do not group them. The page groups by address into keepers. |
 | `contributions[].days` | Days of storage that payment bought, at the price in force at its block. Fractions are fine. |
@@ -342,7 +344,7 @@ On Swarm itself, upload `public/` as a website with `index.html` as both the ind
 
 These came out of the research and the design rounds. Please keep them when you touch copy or add fields.
 
-1. **BZZ only in the Add time sheet.** There, each duration shows its BZZ estimate with the dollar equivalent underneath. Everywhere else, dollars only, always labelled as an estimate. Never PLUR.
+1. **BZZ only in Stamp details and the Add time sheet.** In Stamp details, Balance and Storage price, so balance divided by price can be checked against the expiry. In the sheet, each duration shows its BZZ estimate with the dollar equivalent underneath. Everywhere else, dollars only, always labelled as an estimate. Never PLUR.
 2. **The end is an estimate.** Always "about" a date, with a range. Never a fixed date or a countdown in hours.
 3. **No promises the chain cannot back.** No "forever", no node counts, no SLA. The pill says **Paid**, not "Alive" or "Operational": the chain proves payment, not serving.
 4. **Adding time extends the whole stamp, for everyone.** Anyone can do it, and it does not change the owner.

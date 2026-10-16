@@ -70,6 +70,8 @@
       <div class="row"><dt>Immutable</dt><dd id="immutable">&hellip;</dd></div>
       <div class="row"><dt>Created</dt><dd id="createdRow">&hellip;</dd></div>
       <div class="row"><dt>Expiry</dt><dd id="expiryRow">&hellip;</dd></div>
+      <div class="row"><dt>Balance</dt><dd id="balanceRow">&hellip;</dd></div>
+      <div class="row"><dt>Storage price</dt><dd id="priceRow">&hellip;</dd></div>
       <div class="row"><dt>Balance read</dt><dd><span class="chip" id="readBlock">&hellip;</span> <span class="ui" id="readLine"></span></dd></div>
     </dl>
     <details id="what">
@@ -79,7 +81,7 @@
     </details>
     <details id="why">
       <summary>Why the date moves</summary>
-      <p>Storage is paid per block at a price the network sets. The days left are the balance on this stamp divided by today's price. The price can change at most once every 152 blocks, so the date moves a little as the price moves, and never without a reason you can check on chain. The range uses the lowest and highest price of the last 30 days.</p>
+      <p>Storage is paid per block at a price the network sets. The days left are the balance on this stamp divided by today's storage price. The price can change at most once every 152 blocks, so the date moves a little as the price moves, and never without a reason you can check on chain. The range uses the lowest and highest price of the last 30 days.</p>
     </details>
     <details id="embed">
       <summary>Embed its badge</summary>

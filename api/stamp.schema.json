@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ethswarm.org/stamp/api/stamp.schema.json",
   "title": "Stamptime stamp",
-  "description": "Everything the Stamptime page needs to render one Swarm postage stamp. Returned by GET /api/v1/stamps/{batchId}. Examples in public/examples/. The only token amount is pricing.bzzPerDay, which the page shows in the Add time sheet next to its dollar equivalent; nowhere else shows BZZ or PLUR.",
+  "description": "Everything the Stamptime page needs to render one Swarm postage stamp. Returned by GET /api/v1/stamps/{batchId}. Examples in public/examples/. The only token amount is pricing.bzzPerDay, which the page shows in Stamp details (Storage price, and times the days left, Balance) and in the Add time sheet next to its dollar equivalent; nowhere else shows BZZ, and nothing shows PLUR.",
   "type": "object",
   "required": ["batchId", "status"],
   "properties": {
@@ -53,7 +53,7 @@
     "pricing": {
       "type": "object",
       "properties": {
-        "bzzPerDay": { "description": "What one more day of this whole stamp costs today, in BZZ: currentPrice x 2^depth x 17280 blocks / 1e16. Comes from the chain alone, no exchange rate. Shown only in the Add time sheet, next to the dollar equivalent. null when expired.", "type": ["number", "null"], "minimum": 0 },
+        "bzzPerDay": { "description": "What one more day of this whole stamp costs today, in BZZ: currentPrice x 2^depth x 17280 blocks / 1e16. Comes from the chain alone, no exchange rate. Shown in Stamp details as the Storage price and, times the days left, as the Balance, and in the Add time sheet next to the dollar equivalent. null when expired.", "type": ["number", "null"], "minimum": 0 },
         "usdPerDay": { "description": "What one more day of this whole stamp costs today, in USD: bzzPerDay x BZZ/USD. null if no USD rate is available; the page then hides these dollar figures. Drives the 'from about $' line and the equivalent under each BZZ amount in the Add time sheet. The keepers' dollars come from contributions[].usd instead.", "type": ["number", "null"], "minimum": 0 }
       }
     },
