@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ethswarm.org/stamp/api/stamp.schema.json",
+  "title": "Stamptime stamp",
+  "description": "Everything the Stamptime page needs to render one Swarm postage stamp. Returned by GET /api/v1/stamps/{batchId}. Examples in public/examples/. The only token amount is pricing.bzzPerDay, which the page shows in Stamp details (Storage price, and times the days left, Balance) and in the Add time sheet next to its dollar equivalent; nowhere else shows BZZ, and nothing shows PLUR.",
+  "type": "object",
+  "required": ["batchId", "status"],
+  "properties": {
+    "batchId": {
+      "description": "The postage batch id, 64 lower case hex characters, no 0x prefix.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "status": {
+      "description": "active: the batch has balance left. expired: a BatchCreated exists for this id, but the balance is zero or the batch was removed from contract state. not_found: no BatchCreated was ever emitted for this id on the current PostageStamp contract. 'Expiring soon' is a page rule (14 days or less), not a status.",
+      "enum": ["active", "expired", "not_found"]
+    },
+    "chain": {
+      "description": "Where and when the live values were read.",
+      "type": "object",
+      "required": ["id", "contract", "block", "blockTime"],
+      "properties": {
+        "id": { "description": "Chain id. Gnosis is 100.", "const": 100 },
+        "contract": { "description": "PostageStamp contract address the data was read from.", "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "rpc": { "description": "Host of the RPC used, shown in the footer for transparency. Host only, no keys.", "type": "string" },
+        "block": { "description": "Block number at which remainingBalance and the price were read.", "type": "integer", "minimum": 0 },
+        "blockTime": { "description": "Timestamp of that block, ISO 8601 UTC. The page uses it as 'now' for the bar and the days left.", "type": "string", "format": "date-time" }
+      }
+    },
+    "owner": { "description": "Batch owner, from BatchCreated (or batches(id) while the batch is in state). Checksummed. The ranking labels this address Owner, whoever paid for BatchCreated.", "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "depth": { "description": "Current batch depth, after any BatchDepthIncrease.", "type": "integer", "minimum": 17, "maximum": 41 },
+    "immutable": { "description": "immutableFlag from BatchCreated.", "type": "boolean" },
+    "capacity": { "description": "Usable capacity for this depth and immutability, as a human label, for example '7.7 GB'. Take it from the effective volume table in the Swarm docs. Do not compute 2^depth x 4 KB: that is the theoretical maximum and overstates what fits.", "type": "string" },
+    "created": {
+      "type": "object",
+      "required": ["time", "block", "tx"],
+      "properties": {
+        "time": { "description": "Timestamp of the BatchCreated block.", "type": "string", "format": "date-time" },
+        "block": { "type": "integer", "minimum": 0 },
+        "tx": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" }
+      }
+    },
+    "expiry": {
+      "type": "object",
+      "required": ["time"],
+      "properties": {
+        "time": { "description": "active: most likely end, blockTime + (remainingBalance / currentPrice) x 5 s, never null. expired: when the balance ran out, or null if it cannot be reconstructed.", "type": ["string", "null"], "format": "date-time" },
+        "earliest": { "description": "active: end if the price rose to the highest price of the last 30 days. null when expired.", "type": ["string", "null"], "format": "date-time" },
+        "latest": { "description": "active: end if the price fell to the lowest price of the last 30 days. null when expired.", "type": ["string", "null"], "format": "date-time" },
+        "lastBlock": { "description": "expired: the block at which the balance ran out, if known. null when active.", "type": ["integer", "null"] }
+      }
+    },
+    "pricing": {
+      "type": "object",
+      "properties": {
+        "bzzPerDay": { "description": "What one more day of this whole stamp costs today, in BZZ: currentPrice x 2^depth x 17280 blocks / 1e16. Comes from the chain alone, no exchange rate. Shown in Stamp details as the Storage price and, times the days left, as the Balance, and in the Add time sheet next to the dollar equivalent. null when expired.", "type": ["number", "null"], "minimum": 0 },
+        "usdPerDay": { "description": "What one more day of this whole stamp costs today, in USD: bzzPerDay x BZZ/USD. null if no USD rate is available; the page then hides these dollar figures. Drives the 'from about $' line and the equivalent under each BZZ amount in the Add time sheet. The keepers' dollars come from contributions[].usd instead.", "type": ["number", "null"], "minimum": 0 }
+      }
+    },
+    "contributions": {
+      "description": "One entry per on chain event that paid for time: the BatchCreated, then every BatchTopUp, oldest first. The page groups them by address into the Keepers ranking.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "address", "time", "block", "tx", "days"],
+        "properties": {
+          "kind": { "enum": ["created", "topup"] },
+          "address": { "description": "Who paid: the from address of the transaction that emitted the event. BatchTopUp carries no payer, so read it from the transaction.", "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+          "time": { "type": "string", "format": "date-time" },
+          "block": { "type": "integer", "minimum": 0 },
+          "tx": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
+          "days": { "description": "Days of storage this payment bought for the whole stamp, at the price in force at that block and the depth at that block: (amount / 2^depth) / price x 5 s / 86400. Fractions allowed; the page rounds.", "type": "number", "minimum": 0 },
+          "usd": { "description": "USD value of the payment at the time, or null if unknown.", "type": ["number", "null"], "minimum": 0 },
+          "bzz": { "description": "BZZ this payment put on the stamp: the event amount divided by 1e16, or null if unknown.", "type": ["number", "null"], "minimum": 0 }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "enum": ["active", "expired"] } } },
+      "then": { "required": ["chain", "owner", "depth", "immutable", "capacity", "created", "expiry", "contributions"] }
+    },
+    {
+      "if": { "properties": { "status": { "const": "active" } } },
+      "then": { "properties": { "expiry": { "properties": { "time": { "type": "string" } } } } }
+    }
+  ]
+}

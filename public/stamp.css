@@ -1,0 +1,307 @@
+/*
+  Stamptime. Batch Explorer's look: Roboto, slate greys, indigo as the one colour, white cards with a hairline and
+  a soft shadow, mono for anything read from the chain.
+
+  Sections follow the page: tokens, base, shared pieces, header, notice, meter, keepers, tiles, details, footer,
+  Add time sheet, toast, states, demo bar, desktop, motion and contrast preferences.
+*/
+
+/* ---------- tokens */
+
+:root{
+  /* surfaces and text */
+  --bg:#F6F7F9; --card:#FFFFFF; --ink:#020817; --muted:#5B6878; --on-dark:#FFFFFF;
+  --line:#E2E8F0; --line-strong:#CBD5E1; --subtle:#F1F5F9;
+  /* the one colour */
+  --primary:#5048E5; --primary-hover:#4338CA; --primary-deep:#3730A3; --primary-light:#8B85F0; --primary-soft:#EEF2FF;
+  /* the pill and the live dot: paid, expiring soon, expired */
+  --green:#15803D; --amber:#B45309; --slate:#64748B;
+  /* the bar: a month still ahead, the veil over time spent, the fill once the stamp has run out */
+  --month:var(--line); --month-spent:#B9B6EE; --month-expired:#CFCDEA;
+
+  --ui:"Roboto", system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --mono:SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --shadow:0 1px 3px rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1);
+  --radius-lg:12px; --radius-md:8px; --radius-sm:6px; --radius-xs:4px; --radius-pill:999px;
+  --fast:.15s ease-out;
+  --page:560px;   /* 1100px on desktop */
+  /* stacking: arriving keeper 1, header 2, scrim 3, sheet 4, toast 5 */
+}
+
+/* ---------- base */
+
+*{box-sizing:border-box}
+html{background:var(--bg);scrollbar-color:var(--line-strong) var(--bg)}
+body{margin:0;padding:0 0 calc(32px + env(safe-area-inset-bottom,0px));background:var(--bg);color:var(--ink);
+  font-family:var(--ui);font-size:14px;line-height:1.5}
+a{color:inherit}
+button{font:inherit;color:inherit}
+::selection{background:var(--primary-soft);color:var(--ink)}
+button:focus-visible,summary:focus-visible,a:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+:is(h1,.waiting)[tabindex="-1"]:focus{outline:none}   /* the headings and the waiting note take focus only from the script */
+[hidden]{display:none !important}
+.mono{font-family:var(--mono)}
+.sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+main{max-width:var(--page);margin:0 auto;padding:16px 16px 0;display:grid;gap:12px}
+.side{display:contents}   /* the keepers and the tiles: a column of their own on desktop */
+
+/* ---------- shared pieces, Batch Explorer's vocabulary */
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:16px}
+.card :is(h1,h2){display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0;font-size:16px;font-weight:600}
+.card :is(h1,h2) .cap{font-size:12px;font-weight:400;color:var(--muted)}
+
+.pill{display:inline-flex;align-items:center;padding:2px 10px;border-radius:var(--radius-pill);
+  font-size:12px;font-weight:600;white-space:nowrap;color:var(--on-dark);background:var(--green)}
+.chip{display:inline-block;padding:1px 6px;border:1px solid var(--line);border-radius:var(--radius-xs);vertical-align:1px;
+  font-family:var(--mono);font-size:11px;font-weight:700;white-space:nowrap;text-decoration:none;color:var(--ink);background:var(--card)}
+@media (hover:hover){a.chip:hover{border-color:var(--line-strong)}}
+.usd,.bzz{display:inline-block;padding:2px 6px;border-radius:var(--radius-xs);vertical-align:1px;
+  font-size:10px;font-weight:700;white-space:nowrap;color:var(--muted);background:var(--subtle)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 12px;
+  border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--bg);color:var(--ink);
+  font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;cursor:pointer;transition:background var(--fast)}
+.btn.primary{padding:10px 16px;border-color:var(--primary);border-radius:var(--radius-md);background:var(--primary);color:var(--on-dark);font-size:14px}
+/* hover tints only where there is a hover, so a tap does not leave anything lit. Pressed comes after, to win */
+@media (hover:hover){
+  .btn:not(:disabled):hover{background:var(--subtle)}
+  .btn.primary:not(:disabled):hover{background:var(--primary-hover)}
+}
+.btn:not(:disabled):active{background:var(--line)}
+.btn.primary:not(:disabled):active{background:var(--primary-deep)}
+.btn:disabled{color:var(--slate);cursor:default;text-decoration:line-through}
+
+.chain-link{color:var(--primary);font-family:var(--mono);text-decoration:none}
+@media (hover:hover){.chain-link:hover{text-decoration:underline}}
+
+/* copy buttons: a small icon with a bigger hit area around it */
+.copy{position:relative;padding:0 2px;border:0;background:transparent;color:var(--muted);font-size:12px;cursor:pointer}
+.copy::after{content:"";position:absolute;inset:-6px -4px}
+@media (hover:hover){.copy:hover{color:var(--ink)}}
+
+/* ---------- header, as Batch Explorer's: wordmark, then the live block */
+
+.hdr{position:sticky;top:0;z-index:2;background:var(--card);box-shadow:var(--shadow)}
+.hdr-inner{max-width:var(--page);margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.wordmark{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;letter-spacing:-.01em}
+.wordmark small{font-size:12px;font-weight:400;color:var(--muted)}
+.live{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--muted);
+  white-space:nowrap;font-variant-numeric:tabular-nums}
+.live .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green)}
+
+/* ---------- notice: not found and error, in place of everything else */
+
+.card.notice h1{font-size:18px}
+.notice p{margin:8px 0 0;max-width:60ch;color:var(--muted)}
+.notice .mono{color:var(--ink);overflow-wrap:anywhere}
+.notice .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+
+/* ---------- meter: the number, the sentence, the bar */
+
+.stampid{font-size:13px;font-weight:500;color:var(--muted)}
+.stampid .mono{font-size:12px;color:var(--ink)}
+
+.num{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin:10px 0 0;
+  font-size:64px;font-weight:700;line-height:1;letter-spacing:-.025em;font-variant-numeric:tabular-nums}
+.num small{font-size:14px;font-weight:400;letter-spacing:0;color:var(--muted)}
+.until{margin-top:8px}
+.until b{font-weight:600}
+
+/* the bar: one block per month, never labelled, always filling the width. Three months are three wide blocks, and
+   paying for more squeezes more blocks in. Each month owns its fill, its spent veil and, when it holds today, the
+   line. The 30px above leaves room for the Today label, which sits 14px over the line's top end. */
+.months{position:relative;display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:2px;margin-top:30px}
+.month{position:relative;height:18px;border-radius:2.5px;background:var(--month)}
+.months .fill,.months .spent{position:absolute;top:0;bottom:0;left:0;display:block;border-radius:2.5px}
+.months .fill{width:100%;background:linear-gradient(180deg,var(--primary-light),var(--primary) 55%,var(--primary-deep));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.months .spent{width:var(--q,0%);background:var(--month-spent)}
+.month.now::after{content:"";position:absolute;top:-12px;bottom:-3px;left:var(--x);width:2px;border-radius:1px;
+  background:var(--ink);transform:translateX(-50%)}
+.month.now::before{content:"Today";position:absolute;bottom:calc(100% + 14px);left:var(--x);transform:translateX(-50%);
+  font-size:11px;font-weight:500;color:var(--ink);white-space:nowrap}
+.month.now:first-child::before{transform:translateX(-20%)}   /* in the first month, a centred label would hang off the left edge */
+.month.now::after,.month.now::before{transition:opacity .25s ease-out}
+.months.morphing .now::after,.months.morphing .now::before{opacity:0}
+.months-caption{display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:12px;color:var(--muted);white-space:nowrap}
+
+/* waiting for the chain, after Beeport */
+.waiting{display:flex;align-items:center;gap:10px;margin-top:12px;padding:8px 12px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--bg);font-size:12px;color:var(--muted)}
+.spinner{flex:none;width:10px;height:10px;border-radius:50%;border:1.5px solid var(--primary);border-top-color:transparent;
+  animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- keepers: the names, ranked */
+
+.rank{list-style:none;margin:6px 0 0;padding:0}
+.rank li{position:relative;display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;padding:10px 0;
+  border-top:1px solid var(--line);font-size:14px;transition:border-color .5s ease}
+.rank li:first-child{border-top:0}
+.rank .pos{font-size:12px;font-weight:700;text-align:center;color:var(--muted)}
+.rank .who{min-width:0}
+.rank .who small{display:block;margin-top:1px;font-size:12px;color:var(--muted)}
+.rank .who small .chain-link{font-size:11px}
+.rank .amt{text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
+.rank .amt .usd,.rank .amt .bzz{margin-left:6px}
+.rank li.you .who > span:first-child{font-weight:600}
+.rank li.slot{color:var(--muted)}
+.rank li.slot .pos{color:var(--slate)}
+
+/* a new keeper arriving: a lifted card that lands, keeps a tint for a moment, then becomes a row. The negative
+   margin and the padding cancel out, so nothing shifts. stamp.js times the class changes against these fades. */
+.rank li.arriving{z-index:1;margin:0 -10px;padding-left:10px;padding-right:10px;border-radius:10px;border-top-color:transparent;
+  background-color:transparent;box-shadow:0 0 0 1px transparent,0 0 0 0 transparent;
+  transition:box-shadow .5s ease,background-color .9s ease,border-color .5s ease}
+.rank li.arriving.lift{background-color:var(--card);box-shadow:0 0 0 1px var(--line),0 14px 30px -12px rgba(2,8,23,.3)}
+.rank li.arriving.tint{background-color:var(--primary-soft)}
+
+/* ---------- tiles: what you can do with this stamp */
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid a,.grid button{display:block;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);
+  background:var(--bg);color:var(--ink);font-size:13px;font-weight:500;text-align:left;text-decoration:none;cursor:pointer;
+  transition:background var(--fast),border-color var(--fast)}
+@media (hover:hover){.grid a:hover,.grid button:enabled:hover{background:var(--subtle);border-color:var(--line-strong)}}
+.grid a:active,.grid button:enabled:active{background:var(--line)}
+.grid small{display:block;margin-top:2px;font-size:11px;font-weight:400;color:var(--muted)}
+.grid button:disabled{color:var(--slate);cursor:default}
+.grid button:disabled > span{text-decoration:line-through}   /* the action, not the reason under it */
+
+/* ---------- details: Batch Explorer's rows, then the disclosures */
+
+.rows{margin:6px 0 0}
+.row{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:baseline;padding:9px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row dt{font-size:13px;font-weight:500;color:var(--muted)}
+.row dd{margin:0;font-family:var(--mono);font-size:13px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.row dd .ui{font-family:var(--ui);color:var(--muted)}
+@media (max-width:420px){.row{grid-template-columns:104px 1fr}}
+
+details{padding:8px 0 0;font-size:13px;color:var(--muted)}
+details + details{margin-top:8px;border-top:1px solid var(--line)}
+summary{display:flex;justify-content:space-between;align-items:center;list-style:none;color:var(--ink);font-weight:500;cursor:pointer}
+summary::-webkit-details-marker{display:none}
+/* the chevron's stroke is --muted */
+summary::after{content:"";flex:none;width:14px;height:14px;transition:transform .2s ease-out;
+  background:center/14px no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B6878' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>")}
+details[open] summary::after{transform:rotate(180deg)}
+details p{margin:8px 0 0;max-width:60ch;line-height:1.55}
+details a{color:var(--primary)}
+details .mono{color:var(--ink)}
+.warn{margin-top:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--primary-soft);color:var(--ink)}
+
+.badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:4px 12px 4px 6px;
+  border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--card);box-shadow:var(--shadow);
+  font-size:12px;font-weight:600;color:var(--ink)}
+.badge .dot{display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--primary)}
+.badge small{font-weight:400;color:var(--muted)}
+.code{display:block;margin-top:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--subtle);color:var(--ink);
+  font-family:var(--mono);font-size:11px;overflow-wrap:anywhere}
+
+/* ---------- footer, as Batch Explorer's: where the data came from, then the links */
+
+footer{max-width:var(--page);margin:20px auto 0;padding:14px 16px 0;border-top:1px solid var(--line);
+  display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;font-size:11px;line-height:1.8;color:var(--muted)}
+footer a{text-decoration:none}
+@media (hover:hover){footer a:hover{color:var(--ink)}}
+
+/* ---------- Add time sheet: a bottom sheet on phones, a centred dialog on desktop */
+
+.scrim{position:fixed;inset:0;z-index:3;background:rgba(2,8,23,.4)}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:4;max-height:100vh;max-height:100dvh;overflow-y:auto;overscroll-behavior:contain;
+  padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  border-radius:var(--radius-lg) var(--radius-lg) 0 0;background:var(--card);box-shadow:0 -8px 30px rgba(2,8,23,.18)}
+.sheet-inner{max-width:528px;margin:0 auto}
+.sheet h2{margin:0 0 4px;font-size:18px;font-weight:600}
+.sheet p{margin:0 0 12px;font-size:13px;color:var(--muted)}
+
+.opts{display:grid;gap:8px}
+.opt{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:10px 12px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--bg);text-align:left;cursor:pointer;
+  transition:background var(--fast),border-color var(--fast)}
+.opt[aria-checked="true"]{border-color:var(--primary);background:var(--primary-soft)}
+.opt b{display:block;font-size:14px;font-weight:600}
+.opt small{font-size:12px;color:var(--muted)}
+.opt .price{text-align:right;white-space:nowrap;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
+.opt .price b{font-size:13px}
+.opt .price small{display:block;margin-top:1px;font-family:var(--ui)}
+
+.sheet .note{margin:12px 0 0;font-size:12px}
+.sheet .note button{padding:0;border:0;background:transparent;color:var(--primary);text-decoration:underline;cursor:pointer}
+.sheet .go{width:100%;margin-top:14px}
+.sheet .cancel{width:100%;margin-top:6px;padding:8px;border:0;background:transparent;color:var(--muted);font-size:13px;cursor:pointer}
+
+/* ---------- toast */
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:5;transform:translateX(-50%);
+  max-width:min(400px,calc(100vw - 32px));padding:9px 14px;border-radius:var(--radius-md);background:var(--ink);color:var(--on-dark);
+  font-size:13px;text-align:center;overflow-wrap:anywhere}
+/* while the sheet is open, notes show at the top, so they never cover its buttons */
+.sheet:not([hidden]) ~ .toast{top:calc(16px + env(safe-area-inset-top,0px));bottom:auto}
+
+/* ---------- states, one class on <body>: loading, paid, soon, expired, missing, error */
+
+.state-loading .num span{color:var(--line)}
+.state-loading .rank,.state-loading .rows dd{color:var(--slate)}
+.state-loading .pill{background:var(--slate)}
+
+.state-soon .pill{background:var(--amber)}
+
+.state-expired .pill,.state-expired .live .dot{background:var(--slate)}
+.state-expired .num{color:var(--slate)}
+.state-expired .months .fill{background:var(--month-expired);box-shadow:none}
+.state-expired .warn{background:var(--subtle);color:var(--muted)}
+
+:is(.state-missing,.state-error) :is(.meter,.side,.facts,.live,footer .chain){display:none}
+
+/* ---------- demo bar, only with ?demo= in the URL. Not part of the product */
+
+.devbar{max-width:var(--page);margin:0 auto;padding:10px 16px 6px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;
+  font-size:12px;color:var(--muted)}
+.devbar span{margin-right:4px}
+.devbar button{padding:3px 10px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--card);cursor:pointer}
+.devbar button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--on-dark)}
+
+/* ---------- desktop: same reading order, two columns. The fact and its details on the left, the people and the
+   actions on the right. The sheet becomes a centred dialog */
+
+@media (min-width:900px){
+  :root{--page:1100px}
+  main{grid-template-columns:1fr 1fr;grid-template-areas:"meter side" "facts side";align-items:start;gap:16px;padding-top:20px}
+  .meter{grid-area:meter}
+  .facts{grid-area:facts}
+  .side{grid-area:side;display:flex;flex-direction:column;gap:12px}
+  .card{padding:20px}
+  .num{font-size:72px}
+  .sheet{left:50%;right:auto;top:50%;bottom:auto;transform:translate(-50%,-50%);width:min(540px,calc(100vw - 32px));
+    max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);padding:22px 22px 20px;border-radius:var(--radius-lg);
+    box-shadow:0 20px 60px rgba(2,8,23,.25)}
+  .sheet-inner{max-width:none}
+  :is(.state-missing,.state-error) main{grid-template-columns:1fr;grid-template-areas:none}
+  .notice{max-width:640px}
+}
+
+/* ---------- motion and contrast preferences */
+
+@media (prefers-reduced-motion:reduce){
+  .spinner{animation:none}
+  summary::after{transition:none}
+}
+
+/* with forced colours the tints are gone: a thicker border marks the choice, leaving the outline to focus. The bar
+   and the spinner keep their own colours, like an image would */
+@media (forced-colors:active){
+  .opt[aria-checked="true"]{border:2px solid Highlight;padding:9px 11px}
+  .devbar button[aria-pressed="true"]{border:2px solid Highlight;padding:2px 9px}
+  .months,.spinner{forced-color-adjust:none}
+  .month.now::before{color:CanvasText}
+  .month.now::after{background:CanvasText}
+}
+
+/* ---------- record mode: until the date in <meta name="stamptime-topups-from">, the page shows the record only */
+html.mode-record .full-only{display:none !important}
+html.mode-full .record-only{display:none !important}
+footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--muted)}

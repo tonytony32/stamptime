@@ -1,0 +1,52 @@
+{
+  "batchId": "c4f1a09e2b7d4c1e8f3a6b2d9c0e1f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c7e2d",
+  "status": "expired",
+  "chain": {
+    "id": 100,
+    "contract": "0x45a1502382541Cd610CC9068e88727426b696293",
+    "rpc": "rpc.gnosis.gateway.fm",
+    "block": 45890030,
+    "blockTime": "2027-01-20T12:00:00Z"
+  },
+  "owner": "0x1F3a5c0E7b2D4a9f8E6c1B3d5F7a9C0e2B4d9bC4",
+  "depth": 22,
+  "immutable": true,
+  "capacity": "7.7 GB",
+  "created": {
+    "time": "2026-10-09T09:14:25Z",
+    "block": 44108210,
+    "tx": "0xe06264a3e1c6323e4884ba066b36558d0b7f27169a8ea5ab62504b1ed87eaca1"
+  },
+  "expiry": {
+    "time": "2026-12-27T12:00:00Z",
+    "earliest": null,
+    "latest": null,
+    "lastBlock": 45475310
+  },
+  "pricing": {
+    "bzzPerDay": null,
+    "usdPerDay": null
+  },
+  "contributions": [
+    {
+      "kind": "created",
+      "address": "0x1F3a5c0E7b2D4a9f8E6c1B3d5F7a9C0e2B4d9bC4",
+      "time": "2026-10-09T09:14:25Z",
+      "block": 44108210,
+      "tx": "0xe06264a3e1c6323e4884ba066b36558d0b7f27169a8ea5ab62504b1ed87eaca1",
+      "days": 53,
+      "usd": 2.5,
+      "bzz": 60.4
+    },
+    {
+      "kind": "topup",
+      "address": "0x8b4E2a7C9d1F3e5B7a9C2d4E6f8A0b1C3d5E41e2",
+      "time": "2026-10-12T17:41:05Z",
+      "block": 44166123,
+      "tx": "0x77e78fce1c6d0b612b513efe006970912ec533294a6a3c7803d0ac3b9aecf3be",
+      "days": 26,
+      "usd": 1.2,
+      "bzz": 29.6
+    }
+  ]
+}
