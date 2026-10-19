@@ -308,7 +308,8 @@ You do not need to build any of this, but it explains the load the API will see.
 - **What changed since your last visit:** the page keeps the last version of each stamp it showed in `localStorage`, only to know what is new on a reload. It shows that version for half a second, then plays the sequence above with a short note ("Since you last looked, 181 days were added"). Nothing leaves the browser, and without storage the page simply shows the current state. In the demo, open `?demo=active` and then `?demo=topped` to see it.
 - **Expiring soon:** the page shows it at 14 days or less. It is not an API status.
 - **Ranking:** groups `contributions` by address, sums days, BZZ and dollars, sorts by days given. The row of the `owner` address is labelled Owner, whoever paid for `BatchCreated` ("Owner, created the stamp" when it was the owner); a creator who is not the owner reads "Created the stamp". While the stamp is paid there is an open slot at the end: "Keep it alive: 30 days from about $1.37, any wallet".
-- **Record mode:** until the date in `stamptime-topups-from` the page shows the record only. The tiles are How time is added (a disclosure in Stamp details) and How postage works (the Swarm docs); Add time, Create another, the dollar estimates and the donate embed switch on from that date, and the footer carries the ASCI line meanwhile. The headline, the keepers and Stamp details are the same in both modes. Remove the meta tag for the full page from day one.
+- **Record mode:** until the date in `stamptime-topups-from` the page is the record: what the stamp holds, who kept it alive and how time is added. The tiles are How time is added (a disclosure in Stamp details) and How postage works (the Swarm docs), and the footer carries the ASCI line. From that date the actions switch on. The headline, the keepers and Stamp details are the same in both modes. Remove the meta tag for the full page from day one.
+- **Record build:** `node tools/build-record.mjs` writes `dist/record/`, the page as a public record, for places where only the record should be reachable: an event, an embed, a partner's page. It reads the same API and shows the same headline, bar, keepers and Stamp details, fixed in record mode on `<html>` so it does not depend on the visitor's clock. The full page's own markup sits between `<!-- full-only -->` markers in `index.html`, which is how the build tells the two apart; the build checks its output before it finishes. Serve `dist/record/` where the record is the product; serve `public/` for the full page.
 - **Configuration** lives in three meta tags in `index.html`. In the Beeport template, `{id}` becomes the batch id and `{days}`, if present, the number of days picked in the sheet (30, 182 or 365), for when Beeport accepts a duration. The "Create another" tile links to Beeport's home directly; change it too if you move Beeport.
 
 ```html
@@ -316,6 +317,8 @@ You do not need to build any of this, but it explains the load the API will see.
 <meta name="stamptime-beeport" content="https://beeport.eth.limo/?topup={id}">
 <meta name="stamptime-topups-from" content="2026-11-07T00:00:00Z">
 ```
+
+Markup that belongs only to the full page sits between `<!-- full-only -->` and `<!-- /full-only -->` markers, so the record build can tell the two apart; the script writes to those elements only when they are there, and one script serves both builds.
 
 `index.html` also sets a Content-Security-Policy that runs only scripts from the page's own origin (`script-src 'self'`), so no inline script or markup in the data can run. If your host injects scripts of its own, add their origin there, or a hash of the script for an inline one.
 
