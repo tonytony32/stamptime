@@ -48,8 +48,10 @@
   const BEEPORT = readMeta('stamptime-beeport') || 'https://beeport.eth.limo/?topup={id}';   // {id}, and optionally {days}
   // Record mode: until the date in the meta tag the page only shows the record. No Add time, no Beeport, no
   // dollars, and the ASCI line in the footer. Without the meta tag, or once the date has passed, the full page.
+  // The record build (tools/build-record.mjs) sets mode-record on <html>, so that build is the record whatever the date
+  // or the clock.
   const TOPUPS_FROM = Date.parse(readMeta('stamptime-topups-from') || '');
-  const RECORD = !isNaN(TOPUPS_FROM) && Date.now() < TOPUPS_FROM;
+  const RECORD = document.documentElement.classList.contains('mode-record') || (!isNaN(TOPUPS_FROM) && Date.now() < TOPUPS_FROM);
   document.documentElement.classList.add(RECORD ? 'mode-record' : 'mode-full');
   const GNOSISSCAN = 'https://gnosisscan.io';
   const BATCH_EXPLORER = 'https://batch-explorer.github.io/batch/';
@@ -87,6 +89,10 @@
   // ---------- 2. Helpers: no page state
 
   const $ = id => document.getElementById(id);
+  // The full page's own markup sits between the full-only markers and is not part of the record build: these write only
+  // when the element is there, so one script serves both builds.
+  const setText = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+  const setDisabled = (id, on) => { const el = $(id); if (el) el.disabled = on; };
   const clamp01 = x => Math.max(0, Math.min(1, x));
   const daysBetween = (from, to) => (to - from) / DAY_MS;
   const prefersReducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -498,8 +504,8 @@
       ? (view.end ? 'ran out around ' + formatDate(view.end) : 'ran out')
       : 'paid until about ' + formatDate(view.end);
     $('badgeCode').textContent = '<script src="' + BADGE_JS + '" data-batch="' + stamp.batchId + '"></script>';
-    $('donateCode').textContent = '<script src="' + DONATE_JS + '" data-batch="' + stamp.batchId + '"></script>';
-    $('donateOwner').textContent = ownerShort;
+    setText('donateCode', '<script src="' + DONATE_JS + '" data-batch="' + stamp.batchId + '"></script>');
+    setText('donateOwner', ownerShort);
   }
 
   function expiryRow(view) {
@@ -525,6 +531,7 @@
   // Each BZZ amount has its dollar equivalent underneath.
   function renderSheet(stamp, view) {
     const options = $('opts');
+    if (!options) return;   // the sheet belongs to the full page
     const hadFocus = options.contains(document.activeElement);
     $('sheetLead').textContent = 'Extends the whole stamp, ' + stamp.capacity + ', for everyone who uses it. It does not make it yours.';
     options.innerHTML = html`${DURATIONS.map(duration => durationOption(duration, view.end, stamp.pricing || {}))}`;
@@ -547,8 +554,8 @@
   // Add time and Take it: off when there is nothing to add to, and while a top up is being handed off or on its way.
   function renderActions() {
     const busy = Boolean(pending) || handingOff;
-    $('addBtn').disabled = !isActive(current) || busy;
-    $('addSub').textContent = current && current.status === 'expired' ? 'the stamp has run out' : 'Extend with any wallet';
+    setDisabled('addBtn', !isActive(current) || busy);
+    setText('addSub', current && current.status === 'expired' ? 'the stamp has run out' : 'Extend with any wallet');
     for (const button of document.querySelectorAll('.slot-btn')) button.disabled = busy;
   }
 
@@ -593,7 +600,7 @@
     $('months').style.setProperty('--n', 3);
     $('months').innerHTML = '<i class="month"></i>'.repeat(3);
     $('rank').innerHTML = '<li><span class="pos"></span><span class="who">Reading the history…</span><span class="amt"></span></li>';
-    $('addBtn').disabled = true;
+    setDisabled('addBtn', true);
   }
 
   // `id` is what the visitor asked for: a valid id that was never created, or a malformed one. Null when none.
@@ -1083,7 +1090,7 @@
   });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && !$('sheet').hidden) closeSheet();
+    if (e.key === 'Escape' && $('sheet') && !$('sheet').hidden) closeSheet();
     else if (e.target.closest('#opts')) moveChoice(e);
   });
 

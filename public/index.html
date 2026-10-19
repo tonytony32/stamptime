@@ -9,10 +9,13 @@
 <meta http-equiv="Content-Security-Policy" content="script-src 'self'; object-src 'none'; base-uri 'none'">
 <!-- Where the page reads the stamp from: GET {stamptime-api}/stamps/{batchId}. See README.md and api/stamp.schema.json. -->
 <meta name="stamptime-api" content="/api/v1">
+<!-- full-only -->
 <!-- Where "Add time" hands off to. {id} is replaced by the batch id and, if present, {days} by the number of days picked (30, 182 or 365). -->
 <meta name="stamptime-beeport" content="https://beeport.eth.limo/?topup={id}">
-<!-- Until this date the page is a record only: no Add time, no Beeport, no dollars, and the ASCI line in the footer. From then on, the full page. -->
+<!-- Until this date the page is the record: what the stamp holds, who kept it alive and how time is added. From then on, the full page with its actions.
+     The blocks between the full-only markers belong to the full page; the record build (tools/build-record.mjs) is the page without them. -->
 <meta name="stamptime-topups-from" content="2026-11-07T00:00:00Z">
+<!-- /full-only -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="./stamp.css">
 </head>
@@ -55,8 +58,10 @@
     </section>
 
     <nav class="grid" aria-label="What you can do with this stamp">
+      <!-- full-only -->
       <button type="button" id="addBtn" class="full-only" data-action="add-time" aria-haspopup="dialog" disabled><span>Add time</span><small id="addSub">Extend with any wallet</small></button>
       <a href="https://beeport.eth.limo/" class="full-only" target="_blank" rel="noopener">Create another<small>a new stamp</small><span class="sr"> (opens in a new tab)</span></a>
+      <!-- /full-only -->
       <a href="#how" class="record-only" data-action="open-how">How time is added<small>and who can add it</small></a>
       <a href="https://docs.ethswarm.org/docs/concepts/incentives/postage-stamps" class="record-only" target="_blank" rel="noopener">How postage works<small>Swarm docs</small><span class="sr"> (opens in a new tab)</span></a>
       <a id="eventsLink" href="https://batch-explorer.github.io/" target="_blank" rel="noopener">See every event<small>Batch Explorer</small><span class="sr"> (opens in a new tab)</span></a>
@@ -97,11 +102,13 @@
       <p>The badge reads the same data and links here. Every stamp on Swarm has a page at ethswarm.org/stamp/&lt;id&gt;.</p>
       <span class="badge"><i class="dot"></i>Swarm storage <small id="badgeLine">paid until &hellip;</small></span>
       <code class="code" id="badgeCode"></code>
+      <!-- full-only -->
       <div class="full-only">
         <p>And a donate button. It sends to the stamp's owner, <span class="mono" id="donateOwner">&hellip;</span>, from any wallet; it does not add time to the stamp by itself. The owner decides what to do with it.</p>
         <span class="badge"><i class="dot"></i>Donate <small>to the owner, any wallet</small></span>
         <code class="code" id="donateCode"></code>
       </div>
+      <!-- /full-only -->
     </details>
   </section>
 </main>
@@ -120,6 +127,7 @@
   <p class="asci record-only">Crypto products and NFTs are unregulated and can be highly risky. There may be no regulatory recourse for any loss from such transactions.</p>
 </footer>
 
+<!-- full-only -->
 <div class="scrim" id="scrim" data-action="close-sheet" hidden></div>
 <!-- No aria-modal: the page behind is made inert instead, which keeps #live and #toast audible while the sheet is open. -->
 <div class="sheet" id="sheet" role="dialog" aria-labelledby="sheetH" aria-describedby="sheetLead" hidden>
@@ -133,6 +141,7 @@
     <button class="cancel" type="button" data-action="close-sheet">Cancel</button>
   </div>
 </div>
+<!-- /full-only -->
 <div class="toast" id="toast" hidden></div>
 <div class="sr" id="live" role="status"></div>
 
