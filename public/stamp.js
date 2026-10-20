@@ -78,8 +78,7 @@
   // ---------- 2. Helpers: no page state
 
   const $ = id => document.getElementById(id);
-  // These write only when the element is there.
-  const setText = (id, text) => { const el = $(id); if (el) el.textContent = text; };
+  // Writes only when the element is there.
   const setDisabled = (id, on) => { const el = $(id); if (el) el.disabled = on; };
   const clamp01 = x => Math.max(0, Math.min(1, x));
   const daysBetween = (from, to) => (to - from) / DAY_MS;
@@ -114,8 +113,7 @@
   // Storage that never throws: with storage blocked or in private mode, the page simply remembers nothing.
   const storageIn = area => ({
     get(key) { try { return JSON.parse(area().getItem(key)); } catch (e) { return null; } },
-    set(key, value) { try { area().setItem(key, JSON.stringify(value)); } catch (e) { /* storage off */ } },
-    remove(key) { try { area().removeItem(key); } catch (e) { /* storage off */ } }
+    set(key, value) { try { area().setItem(key, JSON.stringify(value)); } catch (e) { /* storage off */ } }
   });
   const local = storageIn(() => localStorage);
 

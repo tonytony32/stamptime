@@ -220,7 +220,6 @@ summary::after{content:"";flex:none;width:14px;height:14px;transition:transform 
 details[open] summary::after{transform:rotate(180deg)}
 details p{margin:8px 0 0;max-width:60ch;line-height:1.55}
 details a{color:var(--primary)}
-details .mono{color:var(--ink)}
 .warn{margin-top:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--primary-soft);color:var(--ink)}
 
 .badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:4px 12px 4px 6px;
@@ -268,14 +267,12 @@ footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--m
   transition:background var(--fast),transform var(--press)}
 .opt b{font-size:13px;font-weight:600;transition:color .2s ease}
 .opt .est{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
-.opt small{font-size:11px;color:var(--muted);white-space:nowrap}
 @media (hover:hover){.opt:not([aria-checked="true"]):hover{background:var(--subtle)}}
 .opt:active{transform:scale(.97)}
 .opt[aria-checked="true"] b{color:var(--primary-deep)}
 .opt:focus-visible{outline-offset:3px}
 
 .adder .note{margin:10px 0 0;font-size:12px;line-height:1.5}
-.adder .note button{padding:0;border:0;background:transparent;color:var(--primary);text-decoration:underline;cursor:pointer}
 .adder .rule{padding:8px 10px;border-radius:var(--radius-sm);background:var(--subtle)}
 .adder .rule b{color:var(--ink)}
 .adder .links a{margin-right:14px;color:var(--primary);text-decoration:none}
