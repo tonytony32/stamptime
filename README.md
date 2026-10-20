@@ -17,7 +17,7 @@ It stands on the great work of [Batch Explorer](https://batch-explorer.github.io
 
 ## In one picture
 
-**Like you're five.** A postage stamp is a parking meter for data on Swarm. Someone feeds it BZZ, it counts down one block at a time, and when it reaches zero the network stops keeping what it covers. Anyone can feed it, and whoever parked still owns the spot. Stamptime is the window on that meter: it reads the meter straight from the chain and shows how long is left and who has been feeding it.
+A postage stamp is a parking meter for data on Swarm. Someone feeds it BZZ, it counts down one block at a time, and when it reaches zero the network stops keeping what it covers. Anyone can feed it, and whoever parked still owns the spot. Stamptime is the window on that meter: it reads the meter straight from the chain and shows how long is left and who has been feeding it.
 
 ```mermaid
 flowchart LR
@@ -42,23 +42,6 @@ flowchart LR
   class page star
   class chain,beeport plain
   class screen card
-```
-
-**Where it is going.**
-
-```mermaid
-flowchart LR
-  s1["<b>1 · Reads the chain</b><br/>no API, no server<br/><i>done</i>"]
-  s2["<b>2 · Goes online</b><br/>Swarm, ENS or<br/>any static host<br/><i>next</i>"]
-  s3["<b>3 · Batch Explorer</b><br/>links every batch<br/>to its page<br/><i>proposed</i>"]
-  s1 --> s2 --> s3
-
-  classDef done fill:#DCFCE7,stroke:#15803D,stroke-width:1.5px,color:#020817
-  classDef now fill:#5048E5,stroke:#3730A3,stroke-width:1.5px,color:#FFFFFF
-  classDef later fill:#FFFFFF,stroke:#64748B,stroke-width:1.5px,stroke-dasharray:5 4,color:#020817
-  class s1 done
-  class s2 now
-  class s3 later
 ```
 
 ---
