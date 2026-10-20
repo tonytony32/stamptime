@@ -25,14 +25,15 @@ flowchart LR
   page["<b>Stamptime</b><br/>one static page<br/>no server"]
   chain[("<b>Gnosis</b><br/>the meter itself")]
   screen["<b>78 days left</b><br/>paid until ~5 Jan<br/>kept alive by 0x21d6…"]
-  beeport["<b>Beeport</b><br/>any wallet"]
+  explorer["<b>Batch Explorer</b><br/>every event<br/>of the batch"]
 
   you -- "1 · open" --> page
   page -- "2 · read history,<br/>balance, price" --> chain
   page -- "3 · show" --> screen
-  screen -- "4 · Add time" --> beeport
-  beeport -- "5 · pay in BZZ" --> chain
-  chain -. "6 · new time<br/>shows up" .-> page
+  screen -- "4 · Add time:<br/>top up in BZZ,<br/>any wallet" --> chain
+  chain -. "5 · new time<br/>shows up" .-> page
+  screen -- "See every event" --> explorer
+  explorer -. "same contract,<br/>same RPC" .-> chain
 
   classDef person fill:#EEF2FF,stroke:#5048E5,stroke-width:1.5px,color:#020817
   classDef star fill:#5048E5,stroke:#3730A3,stroke-width:1.5px,color:#FFFFFF
@@ -40,7 +41,7 @@ flowchart LR
   classDef card fill:#FFFFFF,stroke:#94A3B8,stroke-width:1.5px,color:#020817
   class you person
   class page star
-  class chain,beeport plain
+  class chain,explorer plain
   class screen card
 ```
 
@@ -113,8 +114,10 @@ flowchart LR
   V[Visitor, phone or desktop] -->|GET /stamp/batchId| S[Static page<br/>public/]
   V -->|eth_getLogs, eth_call at one block,<br/>eth_getTransaction per payment| G[(Gnosis RPC)]
   V -->|BZZ to USD, full page only| P[CoinGecko]
-  V -->|Add time| B[Beeport]
-  B -->|topUp on PostageStamp| G
+  V -->|Add time: top up from any wallet,<br/>topUp on PostageStamp| G
+  V -->|/batch/batchId: every event,<br/>not found, top up not seen yet| E[Batch Explorer]
+  E -->|same contract, same RPC| G
+  E -->|same BZZ to USD| P
 ```
 
 The only interface the page cares about is the JSON document. `public/chain.js` builds it in the browser; an API can serve it instead (see [The stamp document](#the-stamp-document)).
