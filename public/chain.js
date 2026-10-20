@@ -16,8 +16,9 @@
   `withUsd`, one request to CoinGecko for BZZ to USD over the last year, the source Batch Explorer uses. The page
   never asks: it shows BZZ alone.
 
-  What cannot change (senders, past prices, block times) is kept for the life of the tab, and the event lists only
-  fetch what is new, so a re read while the page stays open costs two small requests.
+  What cannot change (senders, past prices, block times, the samples and stretches of the range) is kept for the life
+  of the tab, and the event lists only fetch what is new, so a re read while the page stays open costs two small
+  requests.
 
   The file reads top to bottom:
     1. Constants                   5. The price a payment was made at
@@ -48,7 +49,9 @@ const PRICE_WINDOWS = [2000n, 20000n, 200000n];
 // back from today.
 const WALK_FORWARD_BLOCKS = 6n * RANGE_BLOCKS;
 const WALK_BACK_BLOCKS = 7n * RANGE_BLOCKS;
-const CONCURRENCY = 6;                             // payments read at once, two calls each in a batch
+// Payments read at once: two calls each, all in one batch, so a stamp with up to 24 payments needs one round trip
+// for them, not one per 6.
+const CONCURRENCY = 24;
 const BATCH_SIZE = 100;                            // calls in one JSON-RPC batch, at most
 const PRICE_UPDATE_TOPIC = '0xae46785019700e30375a5d7b4f91e32f8060ef085111f896ebf889450aa2ab5a';   // PriceUpdate(uint256)
 const USD_URL = 'https://api.coingecko.com/api/v3/coins/swarm-bzz/market_chart?vs_currency=usd&days=365&interval=daily';
@@ -213,9 +216,9 @@ async function batchEvents(client, id, head) {
 // The price changes at most once a round, by at most 0.08%, so its lowest and highest points lie next to the lowest
 // and highest of a few samples taken across the 30 days, or at either end when it trends. So this reads:
 //   - in step 2 of a read, the samples: one whole round every SAMPLE_STEP blocks, 64 or 65 rounds, each holding that
-//     round's PriceUpdate, and every block after the last sample
+//     round's PriceUpdate unless the oracle skipped it, and every block after the last sample
 //   - in step 3, for an active stamp only, whole stretches: where the 30 days start, and on either side of the REFINE
-//     highest and the REFINE lowest samples
+//     highest and the REFINE lowest samples, past any sample that came back empty
 // About 500 events instead of 3,300. Replayed every 3 hours over 430 days of real prices, it found the same lowest and
 // highest price as reading all of them at 2,580 of 2,581 heads; the one miss moved an end by 50 minutes, and the "give
 // or take" shown never changed.
