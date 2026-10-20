@@ -8,6 +8,10 @@
 
 /* ---------- tokens */
 
+/* Roboto from this folder: one variable file for 400, 500 and 700 (tools/roboto.sh, SIL Open Font License,
+   fonts/OFL.txt). Until it arrives, and for the arrows it has none of, the system font */
+@font-face{font-family:"Roboto";font-style:normal;font-weight:400 700;font-display:swap;src:url("fonts/roboto.woff2") format("woff2")}
+
 :root{
   /* surfaces and text */
   --bg:#F6F7F9; --card:#FFFFFF; --ink:#020817; --muted:#5B6878; --on-dark:#FFFFFF;
