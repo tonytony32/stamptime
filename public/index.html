@@ -46,8 +46,9 @@
 
   <section class="card meter" aria-label="Time left">
     <h1 tabindex="-1"><span class="stampid">Postage stamp <span class="mono" id="stampShort">&hellip;</span></span> <span class="pill" id="pill">Reading</span></h1>
-    <div class="num" aria-hidden="true"><span id="days">00</span><small id="daysLabel">days left</small></div>
+    <div class="num" aria-hidden="true"><span id="days">00</span><span class="to" id="daysTo" hidden></span><small id="daysLabel">days left</small></div>
     <div class="until" id="until">Reading Gnosis&hellip;</div>
+    <div class="until would" id="would" hidden></div>
     <div class="months" id="months" aria-hidden="true"><i class="month"></i><i class="month"></i><i class="month"></i></div>
     <div class="months-caption"><span id="startCap">Created</span><span id="endCap"></span></div>
     <div class="waiting" id="waiting" tabindex="-1" hidden><i class="spinner"></i><span>Waiting for Gnosis to confirm your top up. Usually under a minute.</span></div>
@@ -64,8 +65,8 @@
       <button type="button" id="addBtn" class="full-only" data-action="add-time" aria-haspopup="dialog" disabled><span>Add time</span><small id="addSub">Extend with any wallet</small></button>
       <a href="https://beeport.eth.limo/" class="full-only" target="_blank" rel="noopener">Create another<small>a new stamp</small><span class="sr"> (opens in a new tab)</span></a>
       <!-- /full-only -->
-      <a href="#how" class="record-only" data-action="open-how">How time is added<small>and who can add it</small></a>
-      <a href="https://docs.ethswarm.org/docs/concepts/incentives/postage-stamps" class="record-only" target="_blank" rel="noopener">How postage works<small>Swarm docs</small><span class="sr"> (opens in a new tab)</span></a>
+      <button type="button" id="addingBtn" class="record-only" data-action="add-time" aria-haspopup="dialog" disabled><span>Adding time</span><small>a month, half a year or a year, on the bar</small></button>
+      <a id="docsLink" href="https://docs.ethswarm.org/docs/concepts/incentives/postage-stamps" class="record-only" target="_blank" rel="noopener">How postage works<small>Swarm docs</small><span class="sr"> (opens in a new tab)</span></a>
       <a id="eventsLink" href="https://batch-explorer.github.io/" target="_blank" rel="noopener">See every event<small>Batch Explorer</small><span class="sr"> (opens in a new tab)</span></a>
       <a id="contractLink" href="https://gnosisscan.io" target="_blank" rel="noopener">Read the contract<small>Gnosisscan</small><span class="sr"> (opens in a new tab)</span></a>
     </nav>
@@ -129,7 +130,6 @@
   <p class="asci record-only">Crypto products and NFTs are unregulated and can be highly risky. There may be no regulatory recourse for any loss from such transactions.</p>
 </footer>
 
-<!-- full-only -->
 <div class="scrim" id="scrim" data-action="close-sheet" hidden></div>
 <!-- No aria-modal: the page behind is made inert instead, which keeps #live and #toast audible while the sheet is open. -->
 <div class="sheet" id="sheet" role="dialog" aria-labelledby="sheetH" aria-describedby="sheetLead" hidden>
@@ -137,13 +137,18 @@
     <h2 id="sheetH">Add time</h2>
     <p id="sheetLead">Extends the whole stamp for everyone who uses it. It does not make it yours.</p>
     <div class="opts" id="opts" role="radiogroup" aria-label="Duration"></div>
-    <p class="note">Storage duration is approximate. Amounts are today's estimate in BZZ, with the dollar equivalent under each. Beeport is Swarm's checkout: it shows the final price, the chain and the fee before you sign, from a wallet you already have on Gnosis, Ethereum or other chains. The stamp is checked on chain before you leave this page.</p>
-    <p class="note">If Beeport cannot take the id from here, <button type="button" data-action="copy" data-copy="batch">copy it</button> and paste it into Beeport's Top up.</p>
-    <button class="btn primary go" type="button" data-action="continue">Continue to Beeport<span class="sr"> (opens in a new tab)</span></button>
-    <button class="cancel" type="button" data-action="close-sheet">Cancel</button>
+    <!-- full-only -->
+    <div class="full-only">
+      <p class="note">Storage duration is approximate. Amounts are today's estimate in BZZ, with the dollar equivalent under each. Beeport is Swarm's checkout: it shows the final price, the chain and the fee before you sign, from a wallet you already have on Gnosis, Ethereum or other chains. The stamp is checked on chain before you leave this page.</p>
+      <p class="note">If Beeport cannot take the id from here, <button type="button" data-action="copy" data-copy="batch">copy it</button> and paste it into Beeport's Top up.</p>
+      <button class="btn primary go" type="button" data-action="continue">Continue to Beeport<span class="sr"> (opens in a new tab)</span></button>
+    </div>
+    <!-- /full-only -->
+    <p class="note rule record-only"><b>Who can do it:</b> any address holding BZZ, by adding it to this stamp's balance on the postage contract on Gnosis Chain. The owner stays the owner. <b>This page shows the record;</b> it does not add time, hold funds or sell anything.</p>
+    <p class="note links record-only"><a href="https://docs.ethswarm.org/docs/concepts/incentives/postage-stamps" target="_blank" rel="noopener">How postage works &rarr;</a> <a id="sheetContract" href="https://gnosisscan.io" target="_blank" rel="noopener">Read the contract &rarr;</a></p>
+    <button class="cancel" type="button" id="sheetClose" data-action="close-sheet">Cancel</button>
   </div>
 </div>
-<!-- /full-only -->
 <div class="toast" id="toast" hidden></div>
 <div class="sr" id="live" role="status"></div>
 

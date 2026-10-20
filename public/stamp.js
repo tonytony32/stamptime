@@ -37,10 +37,11 @@
   const OPEN_SLOT_DAYS = 30;
 
   // The Add time sheet. Six months starts selected.
+  // `label` names the option in the full sheet; `name` and `tag` in the record's sheet, which previews on the bar.
   const DURATIONS = [
-    { days: 30, label: '30 days' },
-    { days: 182, label: '6 months' },
-    { days: 365, label: '1 year' }
+    { days: 30, label: '30 days', name: 'A month', tag: 'the polite nudge' },
+    { days: 182, label: '6 months', name: 'Half a year', tag: 'the comfortable middle' },
+    { days: 365, label: '1 year', name: 'A year', tag: 'the long view' }
   ];
   const DEFAULT_DAYS = 182;
 
@@ -343,6 +344,7 @@
     renderSheet(stamp, view);
     renderActions();
     startBlockClock(stamp, view);
+    if (RECORD && $('sheet') && !$('sheet').hidden) showPreview(chosenDays);
     local.set(KEYS.seen(stamp.batchId), stamp);
     if (before) playArrival(before, view);
   }
@@ -376,7 +378,8 @@
   // The bar: the whole life of the stamp, one block per month, always filling the width. Spent time veiled,
   // today as the line, the time ahead bright, and the estimate dissolving across the end.
   // Each month is an <i>; its colour layers, the fill and the spent veil, are <b>s.
-  function renderBar(view, enter) {
+  // extraDays: the record's preview. Months beyond the paid end are drawn dashed, as what that stretch would add.
+  function renderBar(view, enter, extraDays = 0) {
     const bar = $('months');
     const toMonths = date => daysBetween(view.created, date) / MONTH_DAYS;
     const spent = toMonths(view.expired ? view.barEnd : view.now);
@@ -412,7 +415,14 @@
       }
       return month;
     });
-    bar.style.setProperty('--n', count);
+    const ghosts = extraDays > 0 ? Math.max(0, Math.ceil(end + extraDays / MONTH_DAYS) - count) : 0;
+    for (let g = 0; g < ghosts; g++) {
+      const month = document.createElement('i');
+      month.className = 'month ghost';
+      month.append(layer('fill'));
+      months.push(month);
+    }
+    bar.style.setProperty('--n', count + ghosts);
     bar.replaceChildren(...months);
     if (enter && !view.expired && !prefersReducedMotion()) playEnter(fills);
 
@@ -547,32 +557,63 @@
 
   // The Add time sheet: three durations, each counted from the current end and priced at today's price.
   // Each BZZ amount has its dollar equivalent underneath.
+  // In record mode the sheet is a preview: the same three stretches, what each takes in BZZ, and the bar shows it.
   function renderSheet(stamp, view) {
     const options = $('opts');
-    if (!options) return;   // the sheet belongs to the full page
+    if (!options) return;
     const hadFocus = options.contains(document.activeElement);
-    $('sheetLead').textContent = 'Extends the whole stamp, ' + stamp.capacity + ', for everyone who uses it. It does not make it yours.';
+    setText('sheetH', RECORD ? 'Adding time: what would it take?' : 'Add time');
+    setText('sheetLead', RECORD
+      ? 'Pick a stretch and watch the bar. Today\'s storage price, this stamp\'s size, nothing leaves this page.'
+      : 'Extends the whole stamp, ' + stamp.capacity + ', for everyone who uses it. It does not make it yours.');
+    setText('sheetClose', RECORD ? 'Close' : 'Cancel');
+    const contract = $('sheetContract');
+    if (contract) contract.href = GNOSISSCAN + '/address/' + stamp.chain.contract + '#code';
     options.innerHTML = html`${DURATIONS.map(duration => durationOption(duration, view.end, stamp.pricing || {}))}`;
     if (hadFocus) checkedOption().focus();
   }
 
-  function durationOption({ days, label }, end, { bzzPerDay, usdPerDay }) {
+  function durationOption({ days, label, name, tag }, end, { bzzPerDay, usdPerDay }) {
     const on = days === chosenDays;
     const until = end ? 'to about ' + formatDate(new Date(end.getTime() + days * DAY_MS)) : '';
-    const usd = usdPerDay ? '≈ ' + formatUsd(usdPerDay * days) : '';
+    const usd = !RECORD && usdPerDay ? '≈ ' + formatUsd(usdPerDay * days) : '';
+    const under = RECORD ? '' : usd;
     const price = bzzPerDay
-      ? html`<b>≈ ${formatBzz(bzzPerDay * days)}</b>${usd ? html`<small>${usd}</small>` : ''}`
+      ? html`<b>≈ ${formatBzz(bzzPerDay * days)}</b>${under ? html`<small>${under}</small>` : ''}`
       : usd ? html`<b>${usd}</b>` : '';
+    const title = RECORD ? name : label;
+    const line = RECORD && until ? tag + ' · ' + until : RECORD ? tag : until;
     return html`<button type="button" class="opt" role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}"
         data-action="choose-duration" data-days="${days}">
-      <span><b>${label}</b><small>${until}</small></span><span class="price">${price}</span>
+      <span><b>${title}</b><small>${line}</small></span><span class="price">${price}</span>
     </button>`;
+  }
+
+  // The record's preview: the chosen stretch drawn on the bar, the number it would reach, the date it would reach.
+  function showPreview(days) {
+    if (!RECORD || !isActive(current)) return;
+    const view = describe(current);
+    const option = DURATIONS.find(d => d.days === days) || DURATIONS[0];
+    renderBar(view, false, days);
+    setText('daysTo', String(view.daysLeft + days));
+    $('daysTo').hidden = false;
+    const would = $('would');
+    would.innerHTML = html`With ${option.name.toLowerCase()} on top, about <b>${formatDate(new Date(view.end.getTime() + days * DAY_MS))}</b>. A preview, not a transaction.`;
+    would.hidden = false;
+  }
+
+  function clearPreview() {
+    if (!RECORD) return;
+    $('daysTo').hidden = true;
+    $('would').hidden = true;
+    if (isActive(current)) renderBar(describe(current), false);
   }
 
   // Add time and Take it: off when there is nothing to add to, and while a top up is being handed off or on its way.
   function renderActions() {
     const busy = Boolean(pending) || handingOff;
     setDisabled('addBtn', !isActive(current) || busy);
+    setDisabled('addingBtn', !isActive(current));
     setText('addSub', current && current.status === 'expired' ? 'the stamp has run out' : 'Extend with any wallet');
     for (const button of document.querySelectorAll('.slot-btn')) button.disabled = busy;
   }
@@ -778,14 +819,16 @@
 
   // The sheet is modal: the page behind it is inert while it is open, and focus goes back where it came from.
   function openSheet(trigger) {
-    if (RECORD || !isActive(current) || pending || handingOff) return;
+    if (!isActive(current) || pending || handingOff) return;
     opener = trigger;
     setSheetOpen(true);
+    showPreview(chosenDays);
     checkedOption().focus();
   }
 
   function closeSheet() {
     setSheetOpen(false);
+    clearPreview();
     if (opener && opener.isConnected && !opener.disabled) opener.focus();
     opener = null;
   }
@@ -804,6 +847,7 @@
       each.setAttribute('aria-checked', on);
       each.tabIndex = on ? 0 : -1;
     }
+    showPreview(chosenDays);
   }
 
   // Arrow keys move the choice, as in any radio group.
@@ -1080,18 +1124,8 @@
   // ---------- 10. Wiring: the page's standing listeners, in one place (whenVisible() adds one-off ones)
 
   // Buttons say what they do with data-action; one listener runs it with the button.
-  // The "How time is added" tile opens its disclosure and scrolls to it.
-  function openHow(link) {
-    const how = $('how');
-    if (!how) return;
-    how.open = true;
-    how.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' });
-    how.querySelector('summary').focus({ preventScroll: true });
-  }
-
   const ACTIONS = {
     'add-time': openSheet,
-    'open-how': openHow,
     'close-sheet': closeSheet,
     'choose-duration': chooseDuration,
     'continue': continueToBeeport,
@@ -1103,7 +1137,6 @@
   document.addEventListener('click', e => {
     const target = e.target.closest('[data-action]');
     if (!target || target.disabled) return;
-    if (target.dataset.action === 'open-how') e.preventDefault();   // the href is only a fallback without script
     ACTIONS[target.dataset.action](target);
   });
 

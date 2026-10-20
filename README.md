@@ -17,7 +17,7 @@ It stands on the great work of [Batch Explorer](https://batch-explorer.github.io
 
 ## In one picture
 
-**Like you're five.** A postage stamp is a parking meter for data on Swarm. Someone feeds it BZZ, it counts down one block at a time, and when it reaches zero the network stops keeping what it covers. Anyone can feed it, and whoever parked still owns the spot. Stamptime is the window on that meter: it reads the meter straight from the chain and shows how long is left and who has been feeding it.
+A postage stamp is a parking meter for data on Swarm. Someone feeds it BZZ, it counts down one block at a time, and when it reaches zero the network stops keeping what it covers. Anyone can feed it, and whoever parked still owns the spot. Stamptime is the window on that meter: it reads the meter straight from the chain and shows how long is left and who has been feeding it.
 
 ```mermaid
 flowchart LR
@@ -42,23 +42,6 @@ flowchart LR
   class page star
   class chain,beeport plain
   class screen card
-```
-
-**Where it is going.**
-
-```mermaid
-flowchart LR
-  s1["<b>1 · Reads the chain</b><br/>no API, no server<br/><i>done</i>"]
-  s2["<b>2 · Goes online</b><br/>Swarm, ENS or<br/>any static host<br/><i>next</i>"]
-  s3["<b>3 · Batch Explorer</b><br/>links every batch<br/>to its page<br/><i>proposed</i>"]
-  s1 --> s2 --> s3
-
-  classDef done fill:#DCFCE7,stroke:#15803D,stroke-width:1.5px,color:#020817
-  classDef now fill:#5048E5,stroke:#3730A3,stroke-width:1.5px,color:#FFFFFF
-  classDef later fill:#FFFFFF,stroke:#64748B,stroke-width:1.5px,stroke-dasharray:5 4,color:#020817
-  class s1 done
-  class s2 now
-  class s3 later
 ```
 
 ---
@@ -366,7 +349,7 @@ This is all in `public/stamp.js`, and it explains how often the page reads the s
 - **What changed since your last visit:** the page keeps the last version of each stamp it showed in `localStorage`, only to know what is new on a reload. It shows that version for half a second, then plays the sequence above with a short note ("Since you last looked, 181 days were added"). Nothing leaves the browser, and without storage the page simply shows the current state. In the demo, open `?demo=active` and then `?demo=topped` to see it.
 - **Expiring soon:** the page shows it at 14 days or less. It is not a status in the document.
 - **Ranking:** groups `contributions` by address, sums days, BZZ and dollars, sorts by days given. The row of the `owner` address is labelled Owner, whoever paid for `BatchCreated` ("Owner, created the stamp" when it was the owner); a creator who is not the owner reads "Created the stamp". While the stamp is paid there is an open slot at the end: "Keep it alive: 30 days from about $1.37, any wallet".
-- **Record mode:** until the date in `stamptime-topups-from` the page is the record: what the stamp holds, who kept it alive and how time is added. The tiles are How time is added (a disclosure in Stamp details) and How postage works (the Swarm docs), and the footer carries the ASCI line. From that date the actions switch on. The headline, the keepers and Stamp details are the same in both modes. Remove the meta tag for the full page from day one.
+- **Record mode:** until the date in `stamptime-topups-from` the page is the record: what the stamp holds, who kept it alive and what adding time would take. The tiles are Adding time, See every event, Read the contract and How postage works (the Swarm docs), and the footer carries the ASCI line. Adding time opens the sheet as a preview: the same three stretches, what each takes in BZZ, and the bar draws the chosen one as dashed months with the number and the date it would reach; nothing leaves the page. From that date the actions switch on in the same sheet. The headline, the keepers and Stamp details are the same in both modes. Remove the meta tag for the full page from day one.
 - **Record build:** `node tools/build-record.mjs` writes `dist/record/`, the page as a public record, for places where only the record should be reachable: an event, an embed, a partner's page. It reads the stamp the same way, without dollars, and shows the same headline, bar, keepers and Stamp details, fixed in record mode on `<html>` so it does not depend on the visitor's clock. The full page's own markup sits between `<!-- full-only -->` markers in `index.html`, which is how the build tells the two apart; the build checks its output before it finishes. Serve `dist/record/` where the record is the product; serve `public/` for the full page.
 - **Configuration** lives in three meta tags in `index.html`, and a fourth when an API serves the stamp. `stamptime-rpc` lists the Gnosis RPCs the page reads from, separated by spaces: it uses the first that answers and stays with it. `stamptime-api`, when present, replaces them (see [The stamp document](#the-stamp-document)). In the Beeport template, `{id}` becomes the batch id and `{days}`, if present, the number of days picked in the sheet (30, 182 or 365), for when Beeport accepts a duration. The "Create another" tile links to Beeport's home directly; change it too if you move Beeport.
 
