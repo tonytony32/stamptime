@@ -49,7 +49,7 @@ flowchart LR
 
 ## The short version
 
-- **The page is done.** It lives in `public/`: one HTML file, one CSS file, the page script, the script that reads the chain and viem, vendored. No build step, no framework, no server.
+- **The page is done.** It lives in `public/`: one HTML file, one CSS file, the page script, a small QR encoder, the script that reads the chain and viem, vendored. No build step, no framework, no server.
 - **It reads Gnosis itself.** `public/chain.js` reads the stamp from the PostageStamp contract in the browser, through a public RPC, the way Batch Explorer reads a batch, and builds one JSON document per stamp. `public/stamp.js` draws everything from that document: the bar, the ranking, the four states, what adding time would take, new time arriving.
 - **All it needs is a place to serve `public/`:** any static host, Swarm itself, or a path such as `/stamp/{batchId}` on a site that already exists. See [Serving it](#serving-it).
 - **An API is optional.** The document is [`api/stamp.schema.json`](api/stamp.schema.json), with one example per state in [`public/examples/`](public/examples/). A host that would rather serve it from a cache sets one meta tag and the page asks that API instead. [How to compute each field](#how-to-compute-each-field) has the arithmetic, with viem snippets.
@@ -94,7 +94,7 @@ Add `&bare=1` to hide the demo bar (that is how the screenshots above were taken
 | The bar: one block per month, from creation to the end | `created.time`, `expiry.*`, `chain.blockTime` | `BatchCreated` block time, the expiry above |
 | Keepers ranking, days and BZZ per address | `contributions[]` | `BatchCreated` and every `BatchTopUp`, payer from the transaction |
 | Adding time: ≈ 34.2 BZZ per stretch, and the date it would reach | `pricing.bzzPerDay`, `expiry.time` | `lastPrice()` and depth |
-| Batch ID, owner, depth, immutable | `batchId`, `owner`, `depth`, `immutable` | `BatchCreated`, `BatchDepthIncrease` |
+| Batch ID, with copy and a QR code beside it in the headline and in Stamp details; owner, depth, immutable | `batchId`, `owner`, `depth`, `immutable` | `BatchCreated`, `BatchDepthIncrease` |
 | Storage capacity, 7.7 GB usable | `capacity` | effective volume table for the depth (not on chain) |
 | Created 09/10/2026, #44108210 | `created.*` | `BatchCreated` log |
 | Balance, 83.2 BZZ left on the stamp | `pricing.bzzPerDay` times the days from `chain.blockTime` to `expiry.time` | `remainingBalance(id)` x 2^depth / 1e16 |
@@ -439,6 +439,7 @@ stamptime/
     stamp.css                Batch Explorer's look: Roboto, slate, one indigo
     stamp.js                 all page behaviour, commented
     chain.js                 reads a stamp from Gnosis and builds its document
+    qr.js                    draws the batch id as a QR code, no dependencies
     vendor/
       viem.js                viem 2.47.6, the parts chain.js uses (generated)
     examples/                one JSON per state, used by ?demo= and as fixtures

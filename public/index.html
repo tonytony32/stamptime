@@ -38,8 +38,11 @@
   <section class="card notice" id="notice" hidden></section>
 
   <section class="card meter" aria-label="Time left">
-    <h1 tabindex="-1"><span class="stampid">Postage stamp <span class="mono" id="stampShort">&hellip;</span></span>
-      <span class="pills"><span class="pill preview" id="previewPill" hidden><i class="swatch plan-fill"></i>Preview</span> <span class="pill" id="pill">Reading</span></span></h1>
+    <div class="meter-head">
+      <h1 tabindex="-1" class="stampid">Postage stamp <span class="mono" id="stampShort">&hellip;</span></h1>
+      <span class="id-tools"><button class="copy" type="button" data-action="copy" data-copy="batch" aria-label="Copy batch id"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="copy qr-btn" type="button" data-action="point-qr" popovertarget="qrPop" aria-label="Show the batch id as a QR code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="16" y="3" width="5" height="5" rx="1"/><rect x="3" y="16" width="5" height="5" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1"/></svg></button></span>
+      <span class="pills"><span class="pill preview" id="previewPill" hidden><i class="swatch plan-fill"></i>Preview</span> <span class="pill" id="pill">Reading</span></span>
+    </div>
     <div class="num" aria-hidden="true"><span id="days">00</span><span class="to" id="daysTo" hidden><span class="v" id="daysToNum"></span></span><small id="daysLabel">days left</small></div>
     <div class="until" id="until">Reading Gnosis&hellip;</div>
     <div class="until would" id="would" aria-live="polite" hidden></div>
@@ -78,7 +81,7 @@
   <section class="card facts" aria-labelledby="detH">
     <h2 id="detH">Stamp details</h2>
     <dl class="rows">
-      <div class="row"><dt>Batch ID</dt><dd><span id="batchId">&hellip;</span> <button class="copy" type="button" data-action="copy" data-copy="batch" aria-label="Copy batch id"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></dd></div>
+      <div class="row"><dt>Batch ID</dt><dd><span id="batchId">&hellip;</span> <button class="copy" type="button" data-action="copy" data-copy="batch" aria-label="Copy batch id"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button> <button class="copy qr-btn" type="button" data-action="point-qr" popovertarget="qrPop" aria-label="Show the batch id as a QR code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="16" y="3" width="5" height="5" rx="1"/><rect x="3" y="16" width="5" height="5" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1"/></svg></button></dd></div>
       <div class="row"><dt>Owner</dt><dd><a class="chain-link" id="ownerLink" href="https://gnosisscan.io" target="_blank" rel="noopener">&hellip;</a> <button class="copy" type="button" data-action="copy" data-copy="owner" aria-label="Copy owner address"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></dd></div>
       <div class="row"><dt>Storage capacity</dt><dd><span id="capacity">&hellip;</span> <span class="ui">usable</span></dd></div>
       <div class="row"><dt>Depth</dt><dd id="depth">&hellip;</dd></div>
@@ -126,6 +129,14 @@
   <p class="asci">Crypto products and NFTs are unregulated and can be highly risky. There may be no regulatory recourse for any loss from such transactions.</p>
 </footer>
 
+<!-- The batch id as a QR code, for a phone or a wallet app to read. A popover under the icon that opened it: a tap
+     outside or Escape closes it. stamp.js draws the code with qr.js. -->
+<div class="qr-pop" id="qrPop" popover role="dialog" aria-labelledby="qrH">
+  <p class="qr-h" id="qrH">Batch ID</p>
+  <div class="qr-code" id="qrCode" role="img" aria-label="QR code of the batch id"></div>
+  <p class="qr-id mono" id="qrId"></p>
+  <p class="qr-note">Scan it to use the id on a phone or in a wallet app.</p>
+</div>
 <div class="toast" id="toast" hidden></div>
 <div class="sr" id="live" role="status"></div>
 

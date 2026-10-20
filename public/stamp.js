@@ -288,6 +288,7 @@
   function setState(name) {
     document.body.className = 'state-' + name;
     if (name !== 'paid' && name !== 'soon') hideAdder();   // nothing to add time to
+    if (name === 'loading' || name === 'missing' || name === 'error') hideQr();   // no stamp on screen to show
     // the skeleton's "00 days left" is decoration, not a number to read out
     const number = document.querySelector('.num');
     if (name === 'loading') number.setAttribute('aria-hidden', 'true'); else number.removeAttribute('aria-hidden');
@@ -510,6 +511,7 @@
   function renderDetails(stamp, view) {
     const ownerShort = abbreviate(stamp.owner, 6, 4);
     $('batchId').textContent = stamp.batchId;
+    renderQr(stamp.batchId);
     $('ownerLink').textContent = ownerShort;
     $('ownerLink').href = GNOSISSCAN + '/address/' + stamp.owner;
     $('capacity').textContent = stamp.capacity;
@@ -531,6 +533,26 @@
       ? (view.end ? 'ran out around ' + formatDate(view.end) : 'ran out')
       : 'paid until about ' + formatDate(view.end);
     $('badgeCode').textContent = '<script src="' + BADGE_JS + '" data-batch="' + stamp.batchId + '"></script>';
+  }
+
+  // The batch id as a QR code, in the popover the QR icons open. qr.js loads the first time a stamp is drawn, so the
+  // code is ready before anyone asks for it. The markup is numbers only; the id itself is never put in it.
+  function renderQr(batchId) {
+    if ($('qrId').textContent === batchId) return;
+    $('qrId').textContent = batchId;
+    $('qrCode').replaceChildren();
+    import('./qr.js')
+      .then(({ qrSvg }) => { if ($('qrId').textContent === batchId) $('qrCode').innerHTML = qrSvg(batchId); })
+      .catch(e => console.warn('Stamptime: no QR code.', e));
+  }
+
+  // Which icon the popover hangs from: the one just pressed (stamp.css anchors it there).
+  function pointQr(button) {
+    for (const each of document.querySelectorAll('.qr-btn')) each.style.setProperty('anchor-name', each === button ? '--qr' : 'none');
+  }
+
+  function hideQr() {
+    try { $('qrPop').hidePopover(); } catch (e) { /* closed already, or no popovers */ }
   }
 
   function expiryRow(view) {
@@ -1112,6 +1134,7 @@
     'close-adder': closeAdder,
     'choose-duration': chooseDuration,
     'copy': copy,
+    'point-qr': pointQr,
     'retry': retry,
     'demo': switchDemo
   };
@@ -1137,6 +1160,15 @@
     $('opts').addEventListener('pointerleave', () => {
       if (isAdderOpen() && previewDays !== chosenDays) showPreview(chosenDays, { glide: true });
     });
+  }
+
+  // The QR popover opens only on the stamp it was drawn for. Where popovers are not supported, the icons are not offered.
+  if (HTMLElement.prototype.hasOwnProperty('popover')) {
+    $('qrPop').addEventListener('beforetoggle', e => {
+      if (e.newState === 'open' && !(current && $('qrId').textContent === current.batchId)) e.preventDefault();
+    });
+  } else {
+    for (const button of document.querySelectorAll('.qr-btn')) button.hidden = true;
   }
 
   // The live block catches up as soon as the tab is looked at again.
