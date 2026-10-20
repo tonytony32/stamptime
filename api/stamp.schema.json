@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ethswarm.org/stamp/api/stamp.schema.json",
   "title": "Stamptime stamp",
-  "description": "Everything the Stamptime page needs to render one Swarm postage stamp. Returned by GET /api/v1/stamps/{batchId}. Examples in public/examples/. The only token amount is pricing.bzzPerDay, which the page shows in Stamp details (Storage price, and times the days left, Balance) and in the Add time sheet next to its dollar equivalent; nowhere else shows BZZ, and nothing shows PLUR.",
+  "description": "Everything the Stamptime page needs to render one Swarm postage stamp. Built in the browser by public/chain.js, or returned by GET /api/v1/stamps/{batchId} when an API serves it. Examples in public/examples/. The only token amount is pricing.bzzPerDay, which the page shows in Stamp details (Storage price, and times the days left, Balance) and in the Add time sheet next to its dollar equivalent; nowhere else shows BZZ, and nothing shows PLUR.",
   "type": "object",
   "required": ["batchId", "status"],
   "properties": {

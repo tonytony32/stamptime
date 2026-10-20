@@ -15,17 +15,63 @@ It stands on the great work of [Batch Explorer](https://batch-explorer.github.io
 
 ---
 
+## In one picture
+
+**Like you're five.** A postage stamp is a parking meter for data on Swarm. Someone feeds it BZZ, it counts down one block at a time, and when it reaches zero the network stops keeping what it covers. Anyone can feed it, and whoever parked still owns the spot. Stamptime is the window on that meter: it reads the meter straight from the chain and shows how long is left and who has been feeding it.
+
+```mermaid
+flowchart LR
+  you(["<b>You</b><br/>open the link"])
+  page["<b>Stamptime</b><br/>one static page<br/>no server"]
+  chain[("<b>Gnosis</b><br/>the meter itself")]
+  screen["<b>78 days left</b><br/>paid until ~5 Jan<br/>kept alive by 0x21d6…"]
+  beeport["<b>Beeport</b><br/>any wallet"]
+
+  you -- "1 · open" --> page
+  page -- "2 · read history,<br/>balance, price" --> chain
+  page -- "3 · show" --> screen
+  screen -- "4 · Add time" --> beeport
+  beeport -- "5 · pay in BZZ" --> chain
+  chain -. "6 · new time<br/>shows up" .-> page
+
+  classDef person fill:#EEF2FF,stroke:#5048E5,stroke-width:1.5px,color:#020817
+  classDef star fill:#5048E5,stroke:#3730A3,stroke-width:1.5px,color:#FFFFFF
+  classDef plain fill:#F1F5F9,stroke:#64748B,stroke-width:1.5px,color:#020817
+  classDef card fill:#FFFFFF,stroke:#94A3B8,stroke-width:1.5px,color:#020817
+  class you person
+  class page star
+  class chain,beeport plain
+  class screen card
+```
+
+**Where it is going.**
+
+```mermaid
+flowchart LR
+  s1["<b>1 · Reads the chain</b><br/>no API, no server<br/><i>done</i>"]
+  s2["<b>2 · Goes online</b><br/>Swarm, ENS or<br/>any static host<br/><i>next</i>"]
+  s3["<b>3 · Batch Explorer</b><br/>links every batch<br/>to its page<br/><i>proposed</i>"]
+  s1 --> s2 --> s3
+
+  classDef done fill:#DCFCE7,stroke:#15803D,stroke-width:1.5px,color:#020817
+  classDef now fill:#5048E5,stroke:#3730A3,stroke-width:1.5px,color:#FFFFFF
+  classDef later fill:#FFFFFF,stroke:#64748B,stroke-width:1.5px,stroke-dasharray:5 4,color:#020817
+  class s1 done
+  class s2 now
+  class s3 later
+```
+
+---
+
 ## The short version
 
-- **The page is done.** It lives in `public/`: one HTML file, one CSS file, one JS file. No build step, no framework, no dependencies.
-- **It renders everything from one JSON document per stamp.** The bar, the ranking, the four states, the Add time sheet, waiting for a top up to land: all of that is already in `public/stamp.js`.
-- **What we need from you is the data and a place to serve it:**
-  1. An endpoint `GET /api/v1/stamps/{batchId}` that returns that JSON. The contract is [`api/stamp.schema.json`](api/stamp.schema.json), with one example per state in [`public/examples/`](public/examples/).
-  2. Somewhere on ethswarm.org that serves `public/` at `/stamp/{batchId}`.
-- **Everything you need to compute the JSON from Gnosis** is in [How to compute each field](#how-to-compute-each-field), with viem snippets.
+- **The page is done.** It lives in `public/`: one HTML file, one CSS file, the page script, the script that reads the chain and viem, vendored. No build step, no framework, no server.
+- **It reads Gnosis itself.** `public/chain.js` reads the stamp from the PostageStamp contract in the browser, through a public RPC, the way Batch Explorer reads a batch, and builds one JSON document per stamp. `public/stamp.js` draws everything from that document: the bar, the ranking, the four states, the Add time sheet, waiting for a top up to land.
+- **All it needs is a place to serve `public/`:** any static host, Swarm itself, or a path such as `/stamp/{batchId}` on a site that already exists. See [Serving it](#serving-it).
+- **An API is optional.** The document is [`api/stamp.schema.json`](api/stamp.schema.json), with one example per state in [`public/examples/`](public/examples/). A host that would rather serve it from a cache sets one meta tag and the page asks that API instead. [How to compute each field](#how-to-compute-each-field) has the arithmetic, with viem snippets.
 - **A few decisions are still open** and are listed in [Open questions](#open-questions). None of them blocks starting.
 
-If you read only one more section, read [The API contract](#the-api-contract).
+If you read only one more section, read [How the page reads the chain](#how-the-page-reads-the-chain).
 
 ---
 
@@ -36,7 +82,7 @@ git clone <this repo> && cd stamptime
 python3 -m http.server 8080 --directory public
 ```
 
-Then open one of these. The demo reads `public/examples/<name>.json` instead of the API and shows a bar to switch between states.
+Then open a real stamp, read live from Gnosis: `http://localhost:8080/?id=<batchId>`. Or one of these demos, which read `public/examples/<name>.json` instead of the chain and show a bar to switch between states.
 
 | URL | What you see |
 |---|---|
@@ -45,10 +91,10 @@ Then open one of these. The demo reads `public/examples/<name>.json` instead of 
 | http://localhost:8080/?demo=expiring | 9 days left, the pill turns amber |
 | http://localhost:8080/?demo=expired | The balance ran out, Add time is disabled |
 | http://localhost:8080/?demo=not_found | An id that was never created |
-| http://localhost:8080/?demo=loading | The page while it waits for the API |
-| http://localhost:8080/?demo=error | The API did not answer |
+| http://localhost:8080/?demo=loading | The page while it reads the stamp |
+| http://localhost:8080/?demo=error | The RPC did not answer |
 
-In the `active` demo, press **Take it** or **Add time**, then **Continue to Beeport**. The page shows the waiting state, then plays the top up arriving: the new months add up one by one at the end of the bar and you appear at the top of the ranking. In production the same code opens Beeport in a new tab and polls the API until the new top up shows up.
+In the `active` demo, press **Take it** or **Add time**, then **Continue to Beeport**. The page shows the waiting state, then plays the top up arriving: the new months add up one by one at the end of the bar and you appear at the top of the ranking. In production the same code opens Beeport in a new tab and reads the stamp again until the new top up shows up.
 
 Add `&bare=1` to hide the demo bar (that is how the screenshots above were taken).
 
@@ -82,35 +128,45 @@ BZZ is the unit of the page. The headline says the stamp is paid in BZZ, each ke
 ```mermaid
 flowchart LR
   V[Visitor, phone or desktop] -->|GET /stamp/batchId| S[Static page<br/>public/]
-  V -->|GET /api/v1/stamps/batchId| A[Stamp API]
-  A -->|eth_call at one block:<br/>remainingBalance, lastPrice| G[(Gnosis RPC)]
-  I[Indexer] -->|eth_getLogs on PostageStamp| G
-  I --> D[(Events store)]
-  A --> D
-  A -->|BZZ to USD| P[Price source]
+  V -->|eth_getLogs, eth_call at one block,<br/>eth_getTransaction per payment| G[(Gnosis RPC)]
+  V -->|BZZ to USD, full page only| P[CoinGecko]
   V -->|Add time| B[Beeport]
   B -->|topUp on PostageStamp| G
 ```
 
-**Why an API and not chain reads from the browser.** The page could in principle read Gnosis directly, but in practice it would need:
+The only interface the page cares about is the JSON document. `public/chain.js` builds it in the browser; an API can serve it instead (see [The stamp document](#the-stamp-document)).
 
-- the full event history of a batch, which means `eth_getLogs` over millions of blocks, and public RPCs cap log ranges;
-- one extra `eth_getTransaction` per top up, because `BatchTopUp` carries no payer;
-- the price history for the date range and for the days each top up bought;
-- a USD rate, which is off chain;
-- a way to tell an expired batch from one that never existed, after the contract has removed it from state.
+### How the page reads the chain
 
-That is a lot of RPC traffic per visitor, and a link shared widely can send hundreds of visitors at the same time. A small indexer plus one cached endpoint makes all of this one request.
+A first visit costs about a dozen small requests, under a second on the public RPC. Each re read while the page stays open costs four.
 
-Anything works as the stack. The only interface the page cares about is the JSON.
+| What | How | Requests |
+|---|---|---|
+| The batch's history | One `eth_getLogs` on PostageStamp filtered by batch id, from the deployment block. The Gnosis RPC answers it in one go, as it does for Batch Explorer, with each log's block time | 1 |
+| What is left | `currentTotalOutPayment()` and `lastPrice()`, both at the block just read. What is left per chunk is the batch's last `normalisedBalance` minus that total, so a batch the contract has already removed still reads | 3 with the block |
+| The range | `PriceUpdate` events of the last 30 days, one `eth_getLogs` (about 3,300 events) | 1 |
+| The days each payment bought | The `PriceUpdate` in force at its block: from the 30 days above, or a window of blocks before it | 0 or 1 per payment |
+| Who paid | `eth_getTransaction`, since `BatchTopUp` carries no payer | 1 per payment |
+| When an expired batch ran out | The price history walked from its creation or from today, whichever is closer (step 4 below) | 1 to 12, once |
+| Dollars | CoinGecko, a year of daily BZZ to USD in one request, the source Batch Explorer uses. Skipped in record mode, which shows no dollars | 1 |
+
+What cannot change (who paid, past prices, block times, when a batch ran out) is kept for the life of the tab, and the event lists fetch only what is new. Nothing needs an archive node.
+
+**Load.** Every visitor reads the chain on their own, as on Batch Explorer, and a link shared widely sends that traffic to the RPCs in `stamptime-rpc`. The page uses the first that answers and falls back to the next, so one node down or rate limited does not take it down. Add a node of your own to the list, or set `stamptime-api` and serve the document from a cache.
+
+**viem.** Version 2.47.6, the one Batch Explorer uses, is vendored as `public/vendor/viem.js`: 118 KB, 35 KB compressed, built from [`tools/viem.entry.js`](tools/viem.entry.js), which says how to build it again. `chain.js` and viem load only when a real stamp is asked for, so the demo never touches the chain.
 
 ---
 
-## The API contract
+## The stamp document
+
+One JSON document per stamp, between reading and drawing. `chain.js` builds it; an API that serves it is optional, at:
 
 ```
 GET /api/v1/stamps/{batchId}
 ```
+
+With `<meta name="stamptime-api" content="/api/v1">` in `index.html`, the page asks that instead of the chain. For such an API:
 
 - `batchId`: 64 hex characters, with or without `0x`, any case. Normalise to lower case without `0x` in the response.
 - Always answer **200** with a JSON body, including for a stamp that does not exist (`{"batchId": "<the id>", "status": "not_found"}`). The page also accepts a 404 with that same body, but any other 404 is treated as "the API is not where I expected", which shows the error state, not "no stamp".
@@ -181,6 +237,8 @@ The full schema with descriptions is [`api/stamp.schema.json`](api/stamp.schema.
 
 ## How to compute each field
 
+`public/chain.js` does all of this in the browser. This section is the reference for it, and for an API if one is ever built.
+
 ### Constants
 
 | | |
@@ -237,7 +295,7 @@ const secondsLeft = Number(remaining / price) * 5
 const expiry = new Date((Number(block.timestamp) + secondsLeft) * 1000)
 ```
 
-For the range, take the lowest and highest `PriceUpdate` price of the last 30 days (about 518,400 blocks; your indexer already has them):
+For the range, take the lowest and highest `PriceUpdate` price of the last 30 days (about 518,400 blocks, one `eth_getLogs`):
 
 ```ts
 const earliest = Number(block.timestamp) + Number(remaining / maxPrice30d) * 5   // price up, ends sooner
@@ -248,7 +306,7 @@ If you do not have the history yet, a fixed band of plus or minus 5 % of the tim
 
 ### 2. The history: created and contributions
 
-Index these PostageStamp events from the contract's deployment block, filtered by `batchId` where the event has it:
+Read these PostageStamp events from the contract's deployment block, filtered by `batchId` where the event has it:
 
 - `BatchCreated`: owner, depth, bucket depth, immutable flag, `totalAmount`.
 - `BatchTopUp`: `topupAmount`.
@@ -270,7 +328,7 @@ const address = tx.from
 
 `totalAmount` in `BatchCreated` and `topupAmount` in `BatchTopUp` are both totals for the whole batch (per chunk amount times `2 ** depth`), in PLUR. `usd` is that amount divided by 1e16, times the BZZ to USD rate at the time.
 
-**Log ranges.** Public RPCs cap `eth_getLogs`. Index once from the deployment block in windows (10,000 blocks is a safe start), then follow the head. Do not query history per request.
+**Log ranges.** Both RPCs in `stamptime-rpc` answer `eth_getLogs` filtered by batch id from the deployment block in one request, as `rpc.gnosis.gateway.fm` does for Batch Explorer, and 30 days of `PriceUpdate` in another. Many public RPCs cap ranges (to 50,000 or 10,000 blocks on the free tiers tried): read in windows then (10,000 blocks is a safe start), and follow the head rather than reading the history again.
 
 ### 3. Pricing
 
@@ -288,39 +346,40 @@ const usdPerDay = bzzUsd == null ? null : bzzPerDay * bzzUsd
 | Ran out and removed by `expireLimited` | the read reverts or the owner is zero, **and** you have its `BatchCreated` | `expired` |
 | Never existed | no `BatchCreated` for this id | `not_found` |
 
-The contract cannot tell the last two apart on its own; your event store can. For `expired`, reconstruct `expiry.time` and `expiry.lastBlock` as the first block where `currentTotalOutPayment()` reached the batch's last `normalisedBalance`. Either binary search that view on an archive node, or integrate the `PriceUpdate` history. If neither is available, send `null`; the page then says "Ran out" without a date.
+The contract cannot tell the last two apart on its own; the batch's events can. For `expired`, reconstruct `expiry.time` and `expiry.lastBlock` as the first block where `currentTotalOutPayment()` reached the batch's last `normalisedBalance`. That total grows by the price in force each block, so the `PriceUpdate` history gives it back, walked from either end: back from today, where it has run past the balance by a known amount, or forward from the creation, where `BatchCreated` pins it exactly (its `normalisedBalance` minus `totalAmount / 2 ** depth`). `chain.js` starts from the end that looks closer, tries the other if that fails, and gives up after six months of history from each; an archive node could binary search the view instead. If neither works, send `null`; the page then says "Ran out" without a date.
 
 ### 5. Capacity
 
-Send a label such as `"7.7 GB"`. Take it from the effective volume table in the Swarm docs for the batch's depth and immutability. Do not send `2 ** depth * 4 KB`: that is the theoretical maximum and it overstates what fits.
+Send a label such as `"7.7 GB"`. Take it from the effective volume table in the Swarm docs for the batch's depth (`chain.js` carries the unencrypted table without erasure coding). Do not send `2 ** depth * 4 KB`: that is the theoretical maximum and it overstates what fits.
 
 ---
 
 ## What the page does on its own
 
-You do not need to build any of this, but it explains the load the API will see.
+This is all in `public/stamp.js`, and it explains how often the page reads the stamp.
 
-- **On load:** one `GET`. While it waits, a skeleton with "Reading Gnosis…". A request that gets no answer in 10 s shows the error state, with a retry.
-- **While open:** it ticks the block number every 5 s locally, and re reads the API once per price round (760 s). It skips the re read while waiting for a top up.
-- **Add time:** opens a sheet with 30 days, 6 months and 1 year, each priced in BZZ from `pricing.bzzPerDay` with the dollar equivalent from `pricing.usdPerDay` underneath, and dated from `expiry.time`. On "Continue to Beeport" it re reads the API, so the stamp is checked again before the visitor leaves, then opens Beeport in a new tab. If the API does not answer within 4 s it hands off with the last read: the chain itself refuses a top up on a batch that ran out.
-- **Waiting for the top up:** polls the API every 10 s for up to 10 minutes (if the visitor is still on another tab by then, once more when they come back), until a contribution appears that was not there at hand off. That one is marked as **You**, and the note says how many days it bought. A later `expiry.time` alone does not count: a missed slot or a price change moves it too. The new time plays when the visitor is back on the page's tab. The wait survives a reload or a return in the same tab through `sessionStorage`; if the top up landed meanwhile, the page says "Your top up landed" instead of waiting again.
+- **On load:** one read of the stamp. While it waits, a skeleton with "Reading Gnosis…". A read that has not finished in 10 s shows the error state, with a retry.
+- **While open:** it ticks the block number every 5 s locally, and reads the stamp again once per price round (760 s). It skips the re read while waiting for a top up.
+- **Add time:** opens a sheet with 30 days, 6 months and 1 year, each priced in BZZ from `pricing.bzzPerDay` with the dollar equivalent from `pricing.usdPerDay` underneath, and dated from `expiry.time`. On "Continue to Beeport" it reads the stamp again, so it is checked before the visitor leaves, then opens Beeport in a new tab. If that read has not finished within 4 s it hands off with the last one: the chain itself refuses a top up on a batch that ran out.
+- **Waiting for the top up:** reads the stamp every 10 s for up to 10 minutes (if the visitor is still on another tab by then, once more when they come back), until a contribution appears that was not there at hand off. That one is marked as **You**, and the note says how many days it bought. A later `expiry.time` alone does not count: a missed slot or a price change moves it too. The new time plays when the visitor is back on the page's tab. The wait survives a reload or a return in the same tab through `sessionStorage`; if the top up landed meanwhile, the page says "Your top up landed" instead of waiting again.
 - **New time arriving:** whenever a render brings contributions that were not on screen before (after Beeport, on the periodic re read, or on a reload), the page plays one short sequence instead of jumping. The number counts up to the new total, the months already on the bar glide narrower to make room and the new months settle in at the end, and the new keeper appears on the open slot it took and rises over the list to its rank as a card, while the other rows slide down. With reduced motion it only fades the new row in.
 - **What changed since your last visit:** the page keeps the last version of each stamp it showed in `localStorage`, only to know what is new on a reload. It shows that version for half a second, then plays the sequence above with a short note ("Since you last looked, 181 days were added"). Nothing leaves the browser, and without storage the page simply shows the current state. In the demo, open `?demo=active` and then `?demo=topped` to see it.
-- **Expiring soon:** the page shows it at 14 days or less. It is not an API status.
+- **Expiring soon:** the page shows it at 14 days or less. It is not a status in the document.
 - **Ranking:** groups `contributions` by address, sums days, BZZ and dollars, sorts by days given. The row of the `owner` address is labelled Owner, whoever paid for `BatchCreated` ("Owner, created the stamp" when it was the owner); a creator who is not the owner reads "Created the stamp". While the stamp is paid there is an open slot at the end: "Keep it alive: 30 days from about $1.37, any wallet".
 - **Record mode:** until the date in `stamptime-topups-from` the page is the record: what the stamp holds, who kept it alive and how time is added. The tiles are How time is added (a disclosure in Stamp details) and How postage works (the Swarm docs), and the footer carries the ASCI line. From that date the actions switch on. The headline, the keepers and Stamp details are the same in both modes. Remove the meta tag for the full page from day one.
-- **Record build:** `node tools/build-record.mjs` writes `dist/record/`, the page as a public record, for places where only the record should be reachable: an event, an embed, a partner's page. It reads the same API and shows the same headline, bar, keepers and Stamp details, fixed in record mode on `<html>` so it does not depend on the visitor's clock. The full page's own markup sits between `<!-- full-only -->` markers in `index.html`, which is how the build tells the two apart; the build checks its output before it finishes. Serve `dist/record/` where the record is the product; serve `public/` for the full page.
-- **Configuration** lives in three meta tags in `index.html`. In the Beeport template, `{id}` becomes the batch id and `{days}`, if present, the number of days picked in the sheet (30, 182 or 365), for when Beeport accepts a duration. The "Create another" tile links to Beeport's home directly; change it too if you move Beeport.
+- **Record build:** `node tools/build-record.mjs` writes `dist/record/`, the page as a public record, for places where only the record should be reachable: an event, an embed, a partner's page. It reads the stamp the same way, without dollars, and shows the same headline, bar, keepers and Stamp details, fixed in record mode on `<html>` so it does not depend on the visitor's clock. The full page's own markup sits between `<!-- full-only -->` markers in `index.html`, which is how the build tells the two apart; the build checks its output before it finishes. Serve `dist/record/` where the record is the product; serve `public/` for the full page.
+- **Configuration** lives in three meta tags in `index.html`, and a fourth when an API serves the stamp. `stamptime-rpc` lists the Gnosis RPCs the page reads from, separated by spaces: it uses the first that answers and stays with it. `stamptime-api`, when present, replaces them (see [The stamp document](#the-stamp-document)). In the Beeport template, `{id}` becomes the batch id and `{days}`, if present, the number of days picked in the sheet (30, 182 or 365), for when Beeport accepts a duration. The "Create another" tile links to Beeport's home directly; change it too if you move Beeport.
 
 ```html
-<meta name="stamptime-api" content="/api/v1">
+<meta name="stamptime-rpc" content="https://rpc.gnosis.gateway.fm https://rpc.gnosischain.com">
 <meta name="stamptime-beeport" content="https://beeport.eth.limo/?topup={id}">
 <meta name="stamptime-topups-from" content="2026-11-07T00:00:00Z">
+<!-- optional: <meta name="stamptime-api" content="/api/v1"> -->
 ```
 
 Markup that belongs only to the full page sits between `<!-- full-only -->` and `<!-- /full-only -->` markers, so the record build can tell the two apart; the script writes to those elements only when they are there, and one script serves both builds.
 
-`index.html` also sets a Content-Security-Policy that runs only scripts from the page's own origin (`script-src 'self'`), so no inline script or markup in the data can run. If your host injects scripts of its own, add their origin there, or a hash of the script for an inline one.
+`index.html` also sets a Content-Security-Policy that runs only scripts from the page's own origin (`script-src 'self'`), so no inline script or markup in the data can run. `chain.js` and `vendor/viem.js` are served from that origin too. If your host injects scripts of its own, add their origin there, or a hash of the script for an inline one.
 
 ---
 
@@ -338,9 +397,11 @@ location /stamp/ {
 }
 ```
 
-On Swarm itself, upload `public/` as a website with `index.html` as both the index and the error document, so unknown paths fall back to the page. The API cannot live on Swarm; it needs a server.
+On Swarm itself, upload `public/` as a website with `index.html` as both the index and the error document, so unknown paths fall back to the page. Since the page reads the chain itself, that is all it needs: no server anywhere.
 
-**The API.** Wherever you like, as long as `stamptime-api` in `index.html` points at it. Same origin (`ethswarm.org/api/v1`) is simplest. Keep CORS open for the badge.
+**The RPCs.** Any Gnosis JSON-RPC that allows browser requests (CORS) and `eth_getLogs` over the batch's history, listed in `stamptime-rpc` in the order to try them. The defaults are the one Batch Explorer uses, `rpc.gnosis.gateway.fm`, then Gnosis's own, `rpc.gnosischain.com`. If one fails partway through a read, the whole read is done again on the next, so the footer always names the RPC the page shows.
+
+**An API, if you want one.** Wherever you like, as long as `stamptime-api` in `index.html` points at it. Same origin is simplest. Keep CORS open for the badge.
 
 **Fonts.** The page loads Roboto from Google Fonts, like Batch Explorer. Self host it if you prefer no third party requests; the page falls back to the system font if it fails.
 
@@ -368,18 +429,18 @@ These came out of the research and the design rounds. Please keep them when you 
 |---|---|---|
 | 1 | Does Beeport accept `?topup=<batchId>`, and can it send the visitor back to the page after paying? | Without it the visitor lands on Beeport's Buy flow and could buy a new stamp by mistake. The sheet already offers "copy the id and paste it into Beeport's Top up" as a fallback. |
 | 2 | Who signs the `topUp` transaction when someone pays through Beeport with another token or chain? | If Beeport executes top ups from a shared relayer address, `tx.from` is the relayer for everyone and the ranking becomes one row. We would need the original payer from Beeport, or to label those rows "via Beeport". |
-| 3 | Which BZZ to USD source? | `pricing.usdPerDay` and every `usd`. Historical rates are needed for `contributions[].usd`; daily granularity is enough. |
-| 4 | Which RPC, and do we need an archive node? | Archive only matters for reconstructing the end of expired batches by binary search. Integrating `PriceUpdate` avoids it. |
-| 5 | Price range: 30 day history or a fixed band for v1? | Changes one sentence of copy (see step 1). |
-| 6 | Badge and donate scripts (`ethswarm.org/stamp/badge.js`, `donate.js`) | The page already shows the embed lines. The badge needs only this API. Donate sends to the owner's address; it needs a decision on chain and token. Not needed for a first release. |
+| 3 | BZZ to USD: CoinGecko, as Batch Explorer, or another source? | `chain.js` uses CoinGecko's free API, with no key: one request for a year of daily rates. Payments older than a year show no dollars; a source with a longer history would fill them in. |
+| 4 | Are public RPCs enough for a link shared widely? | Every visitor reads the chain, as on Batch Explorer, from their own browser. The two defaults answer every read the page needs and back each other up. Their rate limits are not known yet; check them before a big launch. A busy link may want its own node at the top of `stamptime-rpc`. No archive node is needed. |
+| 5 | Price range: 30 day history or a fixed band for v1? | Settled: `chain.js` reads the 30 day history in one request. |
+| 6 | Badge and donate scripts (`ethswarm.org/stamp/badge.js`, `donate.js`) | The page already shows the embed lines. The badge needs only the stamp document, from `chain.js` or an API. Donate sends to the owner's address; it needs a decision on chain and token. Not needed for a first release. |
 | 7 | Batches copied from an older PostageStamp deployment | Their `BatchCreated` on the current contract may be the copy, not the original purchase, so "Created" could show the migration date. Fine for v1; worth a look. |
 
 ---
 
 ## Edge cases to test
 
-- [ ] Malformed id in the URL, given with `?id=` or as a path segment that looks like a hash: the page shows "No stamp with this id" without calling the API. A trailing `.` or `)` picked up when the link was pasted is ignored.
-- [ ] An id that never existed: `200`, `"status": "not_found"`.
+- [ ] Malformed id in the URL, given with `?id=` or as a path segment that looks like a hash: the page shows "No stamp with this id" without reading the chain. A trailing `.` or `)` picked up when the link was pasted is ignored.
+- [ ] An id that never existed: `"status": "not_found"`.
 - [ ] A batch that ran out but is still in state: `expired`, with `expiry.time`.
 - [ ] A batch that ran out and was removed: `expired`, from the event history.
 - [ ] A diluted batch (`BatchDepthIncrease`): `depth`, `capacity`, `bzzPerDay` and `usdPerDay` use the current depth; past `days` use the depth at their block.
@@ -387,7 +448,8 @@ These came out of the research and the design rounds. Please keep them when you 
 - [ ] No USD rate: `usdPerDay` and every `usd` are `null`; the page hides dollars and the Add time sheet shows BZZ alone.
 - [ ] A one or two day batch (common on Swarm): one block on the bar, mostly fade. Looks right.
 - [ ] A five year batch: about sixty thin blocks. Readable on desktop, a texture on a phone. Acceptable for v1.
-- [ ] RPC down: the API answers `5xx`; the page shows "Could not read the stamp" with a retry.
+- [ ] First RPC down or unreachable: the page reads through the next one, and the footer names it.
+- [ ] Every RPC down: the page shows "Could not read the stamp" with a retry.
 
 ---
 
@@ -398,17 +460,23 @@ stamptime/
   README.md                  this file
   LICENSE                    Apache 2.0
   api/
-    stamp.schema.json        the contract between the API and the page
+    stamp.schema.json        the stamp document, as chain.js builds it and an API would serve it
   public/                    deploy this folder as /stamp/
-    index.html               markup and the two config meta tags
+    index.html               markup and the config meta tags
     stamp.css                Batch Explorer's look: Roboto, slate, one indigo
     stamp.js                 all page behaviour, commented
-    examples/                one JSON per state, used by ?demo= and as API fixtures
+    chain.js                 reads a stamp from Gnosis and builds its document
+    vendor/
+      viem.js                viem 2.47.6, the parts chain.js uses (generated)
+    examples/                one JSON per state, used by ?demo= and as fixtures
       active.json
       expiring.json
       topped.json
       expired.json
       not_found.json
+  tools/
+    build-record.mjs         the record build
+    viem.entry.js            what goes into vendor/viem.js, and how to build it again
   docs/                      screenshots for this README
 ```
 
@@ -416,11 +484,10 @@ stamptime/
 
 ## Definition of done
 
-- [ ] `GET /api/v1/stamps/{id}` returns the schema for active, expired and not found batches, validated against `api/stamp.schema.json`.
+- [ ] The page reads active, expired and not found batches from Gnosis, and each document it builds matches `api/stamp.schema.json`.
 - [ ] Both live values are read at one pinned block, and `chain.blockTime` is that block's time.
-- [ ] Contributions come from an indexer, not from `eth_getLogs` per request.
-- [ ] `ethswarm.org/stamp/{id}` serves the page, and `?demo=active` still works there.
-- [ ] Responses are cached for about 15 seconds and CORS is open.
+- [ ] A host serves the page, at `/stamp/{id}` or with `?id=`, and `?demo=active` still works there.
+- [ ] The RPCs in `stamptime-rpc` hold up under a link shared widely, or a node of its own goes first in the list.
 - [ ] Open question 1 has an answer, or the copy fallback in the sheet is accepted as the first release behaviour.
 - [ ] Tested on a phone on a slow connection.
 

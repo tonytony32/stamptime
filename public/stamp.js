@@ -2,11 +2,12 @@
   Stamptime: the page logic. No build step, no dependencies.
 
   The page renders one Swarm postage stamp from one JSON document, described in api/stamp.schema.json:
-    production   GET {meta stamptime-api}/stamps/{batchId}
+    production   read from Gnosis in the browser by chain.js, through the RPCs in meta stamptime-rpc,
+                 or GET {meta stamptime-api}/stamps/{batchId} when that meta tag is there
     demo         ./examples/{name}.json, when the URL has ?demo={name}
 
   The batch id comes from ?id= when present, otherwise from the last path segment (/stamp/{id}).
-  Everything visual lives here; the backend only has to return the JSON.
+  Everything visual lives here; chain.js, or an API, only has to produce the JSON.
 
   The file reads top to bottom:
      1. Configuration            6. Motion: new time arriving
@@ -44,7 +45,10 @@
   const DEFAULT_DAYS = 182;
 
   const readMeta = name => { const meta = document.querySelector('meta[name="' + name + '"]'); return meta ? meta.content : null; };
-  const API = (readMeta('stamptime-api') || '/api/v1').replace(/\/$/, '');
+  // Where the stamp comes from: Gnosis itself, through the first of these RPCs that answers, unless an API is set (see
+  // fetchStamp). Both defaults answer eth_getLogs over a batch's whole history; many public RPCs cap the range.
+  const RPCS = (readMeta('stamptime-rpc') || 'https://rpc.gnosis.gateway.fm https://rpc.gnosischain.com').split(/\s+/).filter(Boolean);
+  const API = (readMeta('stamptime-api') || '').replace(/\/$/, '') || null;
   const BEEPORT = readMeta('stamptime-beeport') || 'https://beeport.eth.limo/?topup={id}';   // {id}, and optionally {days}
   // Record mode: until the date in the meta tag the page only shows the record. No Add time, no Beeport, no
   // dollars, and the ASCI line in the footer. Without the meta tag, or once the date has passed, the full page.
@@ -154,6 +158,7 @@
 
   // One stamp document. Rejects on network errors, timeouts, HTTP errors and documents the page cannot draw.
   async function fetchStamp(id, demo, timeoutMs = FETCH_TIMEOUT_MS) {
+    if (!demo && !API) return checked(await readFromChain(id, timeoutMs), id);
     const url = demo ? './examples/' + demo + '.json' : API + '/stamps/' + id;
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), timeoutMs);
@@ -168,6 +173,19 @@
       }
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return checked(await res.json(), demo ? null : id);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // The stamp read from Gnosis by chain.js. It loads, and viem with it, only when a real stamp is asked for, so the
+  // demo never touches the chain. The record asks for no dollars, since it shows none.
+  async function readFromChain(id, timeoutMs) {
+    let timer;
+    const timeout = new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error('Gnosis did not answer in time')), timeoutMs); });
+    try {
+      const chain = await Promise.race([import('./chain.js'), timeout]);
+      return await Promise.race([chain.readStamp(id, { rpcs: RPCS, withUsd: !RECORD }), timeout]);
     } finally {
       clearTimeout(timer);
     }
@@ -622,7 +640,7 @@
     setState('error');
     stopBlockClock();
     showNotice(html`<h1 tabindex="-1">Could not read the stamp</h1>
-      <p>The stamp service did not answer. The stamp itself may be fine: it lives on Gnosis, not here.</p>
+      <p>${API ? 'The stamp service' : RPCS.length > 1 ? 'The Gnosis nodes this page reads from' : 'The Gnosis node this page reads from'} did not answer. The stamp itself may be fine: it lives on Gnosis, not here.</p>
       <div class="actions">
         <button class="btn" type="button" id="retry" data-action="retry">Try again</button>
         ${id ? externalLink(BATCH_EXPLORER + id, 'Check on Batch Explorer', 'btn') : ''}
