@@ -15,7 +15,7 @@
   What cannot change (senders, past prices, block times) is kept for the life of the tab, and the event lists only
   fetch what is new, so the page's re reads while it stays open cost four small requests.
 */
-import { createClient, decodeEventLog, getAddress, getBlock, getTransaction, http, numberToHex, readContract } from './vendor/viem.js';
+import { createClient, decodeEventLog, decodeFunctionResult, getAddress, http, numberToHex, toFunctionSelector } from './vendor/viem.js';
 
 
 // ---------- Constants
@@ -124,18 +124,42 @@ async function eventsBetween(client, topics, from, to) {
   return events.sort((a, b) => a.block === b.block ? a.index - b.index : a.block < b.block ? -1 : 1);
 }
 
-const view = (client, functionName, blockNumber) =>
-  readContract(client, { address: CONTRACT, abi: VIEWS, functionName, blockNumber });
+// The calls below are raw JSON-RPC, decoded with viem: its readContract, getBlock and getTransaction actions would
+// bring 72 KB of formatters and contract error handling for the two fields each of them is read for.
+
+// A view of PostageStamp at one block, decoded by its ABI.
+async function view(client, functionName, blockNumber) {
+  const fn = VIEWS.find(f => f.name === functionName);
+  const data = await client.request({
+    method: 'eth_call',
+    params: [{ to: CONTRACT, data: toFunctionSelector(fn) }, numberToHex(blockNumber)]
+  });
+  return decodeFunctionResult({ abi: [fn], functionName, data });
+}
+
+// The latest block, or the one numbered `blockNumber`: its number and its time.
+async function blockAt(client, blockNumber) {
+  const block = await client.request({
+    method: 'eth_getBlockByNumber',
+    params: [blockNumber == null ? 'latest' : numberToHex(blockNumber), false]
+  });
+  if (!block) throw new Error('No block ' + (blockNumber ?? 'latest'));
+  return { number: BigInt(block.number), timestamp: Number(block.timestamp) };
+}
 
 async function timeOfBlock(client, blockNumber) {
-  if (!blockTimes.has(blockNumber)) blockTimes.set(blockNumber, Number((await getBlock(client, { blockNumber })).timestamp));
+  if (!blockTimes.has(blockNumber)) blockTimes.set(blockNumber, (await blockAt(client, blockNumber)).timestamp);
   return blockTimes.get(blockNumber);
 }
 
 const timeOf = (client, event) => event.time != null ? Promise.resolve(event.time) : timeOfBlock(client, event.block);
 
 async function senderOf(client, hash) {
-  if (!senders.has(hash)) senders.set(hash, getAddress((await getTransaction(client, { hash })).from));
+  if (!senders.has(hash)) {
+    const tx = await client.request({ method: 'eth_getTransactionByHash', params: [hash] });
+    if (!tx) throw new Error('No transaction ' + hash);
+    senders.set(hash, getAddress(tx.from));
+  }
   return senders.get(hash);
 }
 
@@ -310,9 +334,9 @@ async function readFrom(rpc, id, withUsd) {
   const dollars = withUsd ? usdSeries() : Promise.resolve(null);   // alongside the chain reads, never in their way
 
   // Every live value is read at this one block, and its time is the page's "now".
-  const block = await getBlock(client);
+  const block = await blockAt(client);
   const head = block.number;
-  const now = Number(block.timestamp);
+  const now = block.timestamp;
   const [events, totalOut, price, recent] = await Promise.all([
     batchEvents(client, id, head),
     view(client, 'currentTotalOutPayment', head),
