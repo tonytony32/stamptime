@@ -214,10 +214,11 @@ async function batchEvents(client, id, head) {
 // and highest of a few samples taken across the 30 days, or at either end when it trends. So this reads:
 //   - in step 2 of a read, the samples: one whole round every SAMPLE_STEP blocks, 64 or 65 rounds, each holding that
 //     round's PriceUpdate, and every block after the last sample
-//   - in step 3, for an active stamp only, whole stretches: the one where the 30 days start, and those on either side
-//     of the REFINE highest and the REFINE lowest samples
-// Replayed every 3 hours over 100 days of real prices, it found the same lowest and highest price as reading all of
-// them at 821 of 822 heads; the one miss moved an end by 50 minutes, and the "give or take" shown never changed.
+//   - in step 3, for an active stamp only, whole stretches: where the 30 days start, and on either side of the REFINE
+//     highest and the REFINE lowest samples
+// About 500 events instead of 3,300. Replayed every 3 hours over 430 days of real prices, it found the same lowest and
+// highest price as reading all of them at 2,580 of 2,581 heads; the one miss moved an end by 50 minutes, and the "give
+// or take" shown never changed.
 // Samples and stretches start at fixed blocks, so a re read finds them again in what this tab remembers, and asks
 // only for what came after the last sample.
 
@@ -256,14 +257,22 @@ async function pricesSince(client, from, head) {
 // The lowest and the highest price of the 30 days before `head`, today's `price` among them. Stretch i runs from the
 // end of sample i to the start of sample i + 1; the one before the first sample takes in the whole step before it,
 // since the 30 days may start there; the one after the last sample is the `tail`, already read.
+// A sample whose round had no PriceUpdate says nothing: the oracle sometimes skips dozens of rounds. So from each
+// chosen sample the stretches are read on either side up to the nearest sample that holds one, and so are all of them
+// before the first sample that holds one, where the 30 days start.
 async function priceRange(client, head, price, { starts, rounds, tail }) {
   const prices = events => events.map(e => e.args.price);
   const held = rounds.map((events, i) => ({ i, prices: prices(events) })).filter(sample => sample.prices.length)
     .map(({ i, prices: p }) => ({ i, low: minOf(p, p[0]), high: maxOf(p, p[0]) }));
   const highest = [...held].sort((a, b) => byValue(b.high, a.high)).slice(0, REFINE);
   const lowest = [...held].sort((a, b) => byValue(a.low, b.low)).slice(0, REFINE);
-  const beside = new Set([-1]);
-  for (const { i } of [...highest, ...lowest]) beside.add(i - 1).add(i);
+  const holds = i => rounds[i].length > 0;
+  const beside = new Set();
+  if (!held.length) for (let k = -1; k < starts.length - 1; k++) beside.add(k);   // no sample said anything: all of it
+  for (const { i } of held.length ? [held[0], ...highest, ...lowest] : []) {
+    for (let k = i - 1; k >= -1; k--) { beside.add(k); if (k < 0 || holds(k)) break; }
+    for (let k = i; k < starts.length - 1; k++) { beside.add(k); if (holds(k + 1)) break; }
+  }
   const stretches = await Promise.all([...beside].filter(i => i < starts.length - 1).map(i => {
     const from = i < 0 ? starts[0] - SAMPLE_STEP : starts[i] + ROUND_BLOCKS;
     return once(wholeStretches, from, () => priceUpdatesBetween(client, from, starts[i + 1] - 1n));
