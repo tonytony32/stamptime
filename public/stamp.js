@@ -319,7 +319,10 @@
     setState(view.expired ? 'expired' : view.soon ? 'soon' : 'paid');
     const previewing = isAdderOpen();
     renderHeadline(stamp, view, pending);
+    // the rest of a read joining its first look leaves the bar until its months have filled in, never cutting that short
+    const barWait = animate === 'fill' ? Math.max(0, enterEndsAt - performance.now()) : 0;
     if (pending && view.expired && !view.end) renderBarWaiting(view);
+    else if (barWait) later('bar', () => { if (current === stamp) settleBar(stamp); }, barWait);
     else renderBar(view, animate === 'enter', previewing ? chosenDays : 0, before ? 'arrival' : animate === 'fill' ? 'preview' : null);
     renderKeepers(stamp, view, pending);
     renderDetails(stamp, view);
@@ -327,7 +330,7 @@
     renderAdder(stamp);
     renderActions();
     startBlockClock(stamp, view);
-    if (previewing) showPreview(chosenDays, { bar: false });
+    if (previewing && !barWait) showPreview(chosenDays, { bar: false });
     if (!pending) local.set(KEYS.seen(stamp.batchId), stamp);
     if (before) playArrival(before, view);
   }
@@ -451,6 +454,13 @@
     $('endCap').innerHTML = view.expired
       ? (view.end ? html`ran out ${formatDayMonth(view.end)}` : '')
       : html`<span aria-hidden="true">~</span><span class="sr">about </span>${formatDayMonth(view.end)}`;
+  }
+
+  // The bar of a stamp that joined its first look, once the months have filled in, with Adding time's stretch if open.
+  function settleBar(stamp) {
+    const previewing = isAdderOpen();
+    renderBar(describe(stamp), false, previewing ? chosenDays : 0, 'preview');
+    if (previewing) showPreview(chosenDays, { bar: false });
   }
 
   // An expired stamp's first look: the bar keeps its skeleton until the end is read, rather than guess where it is.
@@ -716,11 +726,12 @@
     setDisabled('addBtn', true);
     reading = id;
     if (id) {
-      const shortId = abbreviate(id, 8, 7);
-      $('stampShort').textContent = shortId;
+      // shorter than the stamp's own heading, so that beside the wider Reading pill it keeps to one line on a phone,
+      // and nothing moves when the stamp arrives
+      $('stampShort').textContent = abbreviate(id, 6, 4);
       $('batchId').textContent = id;
       $('eventsLink').href = BATCH_EXPLORER + id;
-      document.title = 'Postage stamp ' + shortId + ' · Stamptime';
+      document.title = 'Postage stamp ' + abbreviate(id, 8, 7) + ' · Stamptime';
     }
   }
 
@@ -1059,7 +1070,7 @@
   // until then the skeleton says which step the read is on.
   async function start(demo = DEMO) {
     const run = ++generation;
-    stop('refresh', 'replay', 'fill');
+    stop('refresh', 'replay', 'bar');
     const { id, asked } = idFromUrl();
     if (!demo && !id) return renderMissing(asked);
     if (demo === 'loading') return renderLoading();
@@ -1147,16 +1158,12 @@
   }
 
   // The rest of the read joins the first look: the keepers fade in where "Reading" was, the sentence sharpens into
-  // its range, the bar settles. Once the months have filled in, so that never stops halfway.
+  // its range, and the bar settles once its months have filled in (showStamp()).
   function fillIn(stamp) {
-    const look = current, run = generation;
-    later('fill', () => {
-      if (run !== generation || current !== look) return;
-      const sentence = $('until').textContent;
-      showStamp(stamp, { animate: 'fill' });
-      for (const li of $('rank').children) li.animate([{ opacity: 0 }, { opacity: 1 }], { duration: MOTION.fade.duration, easing: 'ease' });
-      if ($('until').textContent !== sentence) sharpenSoftly($('until'));
-    }, Math.max(0, enterEndsAt - performance.now()));
+    const sentence = $('until').textContent;
+    showStamp(stamp, { animate: 'fill' });
+    for (const li of $('rank').children) li.animate([{ opacity: 0 }, { opacity: 1 }], { duration: MOTION.fade.duration, easing: 'ease' });
+    if ($('until').textContent !== sentence) sharpenSoftly($('until'));
   }
 
   // Runs fn now, or when the visitor comes back to this tab: news should not play to an empty room.
