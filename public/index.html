@@ -7,9 +7,10 @@
 <meta name="description" content="A Swarm postage stamp: paid until a date, verifiable on chain, renewable by anyone.">
 <!-- Only this page's own script may run, so markup that slips into the data can never execute. -->
 <meta http-equiv="Content-Security-Policy" content="script-src 'self'; object-src 'none'; base-uri 'none'">
-<!-- Where the page reads the stamp from: Gnosis itself, through this RPC (chain.js). To read from an API instead, add
-     <meta name="stamptime-api" content="/api/v1"> and the page asks GET {stamptime-api}/stamps/{batchId}. See README.md. -->
-<meta name="stamptime-rpc" content="https://rpc.gnosis.gateway.fm">
+<!-- Where the page reads the stamp from: Gnosis itself, through the first of these RPCs that answers, separated by spaces
+     (chain.js). To read from an API instead, add <meta name="stamptime-api" content="/api/v1"> and the page asks
+     GET {stamptime-api}/stamps/{batchId}. See README.md. -->
+<meta name="stamptime-rpc" content="https://rpc.gnosis.gateway.fm https://rpc.gnosischain.com">
 <!-- full-only -->
 <!-- Where "Add time" hands off to. {id} is replaced by the batch id and, if present, {days} by the number of days picked (30, 182 or 365). -->
 <meta name="stamptime-beeport" content="https://beeport.eth.limo/?topup={id}">

@@ -2,7 +2,7 @@
   Stamptime: the page logic. No build step, no dependencies.
 
   The page renders one Swarm postage stamp from one JSON document, described in api/stamp.schema.json:
-    production   read from Gnosis in the browser by chain.js, through the RPC in meta stamptime-rpc,
+    production   read from Gnosis in the browser by chain.js, through the RPCs in meta stamptime-rpc,
                  or GET {meta stamptime-api}/stamps/{batchId} when that meta tag is there
     demo         ./examples/{name}.json, when the URL has ?demo={name}
 
@@ -45,8 +45,9 @@
   const DEFAULT_DAYS = 182;
 
   const readMeta = name => { const meta = document.querySelector('meta[name="' + name + '"]'); return meta ? meta.content : null; };
-  // Where the stamp comes from: Gnosis itself, through this RPC, unless an API is set (see fetchStamp).
-  const RPC = readMeta('stamptime-rpc') || 'https://rpc.gnosis.gateway.fm';
+  // Where the stamp comes from: Gnosis itself, through the first of these RPCs that answers, unless an API is set (see
+  // fetchStamp). Both defaults answer eth_getLogs over a batch's whole history; many public RPCs cap the range.
+  const RPCS = (readMeta('stamptime-rpc') || 'https://rpc.gnosis.gateway.fm https://rpc.gnosischain.com').split(/\s+/).filter(Boolean);
   const API = (readMeta('stamptime-api') || '').replace(/\/$/, '') || null;
   const BEEPORT = readMeta('stamptime-beeport') || 'https://beeport.eth.limo/?topup={id}';   // {id}, and optionally {days}
   // Record mode: until the date in the meta tag the page only shows the record. No Add time, no Beeport, no
@@ -184,7 +185,7 @@
     const timeout = new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error('Gnosis did not answer in time')), timeoutMs); });
     try {
       const chain = await Promise.race([import('./chain.js'), timeout]);
-      return await Promise.race([chain.readStamp(id, { rpc: RPC, withUsd: !RECORD }), timeout]);
+      return await Promise.race([chain.readStamp(id, { rpcs: RPCS, withUsd: !RECORD }), timeout]);
     } finally {
       clearTimeout(timer);
     }
@@ -639,7 +640,7 @@
     setState('error');
     stopBlockClock();
     showNotice(html`<h1 tabindex="-1">Could not read the stamp</h1>
-      <p>${API ? 'The stamp service' : 'The Gnosis node this page reads from'} did not answer. The stamp itself may be fine: it lives on Gnosis, not here.</p>
+      <p>${API ? 'The stamp service' : RPCS.length > 1 ? 'The Gnosis nodes this page reads from' : 'The Gnosis node this page reads from'} did not answer. The stamp itself may be fine: it lives on Gnosis, not here.</p>
       <div class="actions">
         <button class="btn" type="button" id="retry" data-action="retry">Try again</button>
         ${id ? externalLink(BATCH_EXPLORER + id, 'Check on Batch Explorer', 'btn') : ''}

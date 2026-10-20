@@ -2,7 +2,8 @@
   Stamptime: one stamp read straight from Gnosis, in the browser. No server between the page and the chain.
 
   readStamp(id) returns the document described in api/stamp.schema.json, the same one an API would send, so the
-  page does not need to know where it came from. Everything comes from the PostageStamp contract, through one RPC:
+  page does not need to know where it came from. Everything comes from the PostageStamp contract, through the first of
+  the RPCs it is given that answers:
     - the batch's own events (BatchCreated, BatchTopUp, BatchDepthIncrease), one eth_getLogs filtered by batch id,
       which is how Batch Explorer reads a batch
     - currentTotalOutPayment() and lastPrice(), both at the same block
@@ -68,6 +69,7 @@ const EFFECTIVE_VOLUME = {
 // ---------- What this tab remembers
 
 const clients = new Map();          // rpc url -> viem client
+let lastAnswered = null;            // the rpc url that gave the last whole document
 const histories = new Map();        // batch id -> { safe, events }: its events up to block `safe`, which cannot change
 let recentPrices = { safe: -1n, list: [] };   // PriceUpdate events of the last 30 days, oldest first
 const senders = new Map();          // tx hash -> who sent it
@@ -83,8 +85,9 @@ const iso = seconds => new Date(seconds * 1000).toISOString().replace('.000Z', '
 const minOf = (list, start) => list.reduce((min, x) => x < min ? x : min, start);
 const maxOf = (list, start) => list.reduce((max, x) => x > max ? x : max, start);
 
+// A short timeout and one retry, so that a node that hangs leaves the next one time to answer within the page's 10 s.
 function clientFor(rpc) {
-  if (!clients.has(rpc)) clients.set(rpc, createClient({ transport: http(rpc, { timeout: 8000, retryCount: 2 }) }));
+  if (!clients.has(rpc)) clients.set(rpc, createClient({ transport: http(rpc, { timeout: 4000, retryCount: 1 }) }));
   return clients.get(rpc);
 }
 
@@ -283,8 +286,26 @@ function capacityOf(depth) {
 
 // ---------- The document
 
-// `id`: 64 lower case hex characters, no 0x. `rpc`: a Gnosis JSON-RPC url. `withUsd`: false skips CoinGecko.
-export async function readStamp(id, { rpc, withUsd = true }) {
+// `id`: 64 lower case hex characters, no 0x. `rpcs`: Gnosis JSON-RPC urls, tried in order until one gives the whole
+// document, starting from the one that answered last, so a node that is down costs one wait, not one per read.
+// `withUsd`: false skips CoinGecko.
+export async function readStamp(id, { rpcs, withUsd = true }) {
+  const ordered = rpcs.includes(lastAnswered) ? [lastAnswered, ...rpcs.filter(rpc => rpc !== lastAnswered)] : rpcs;
+  let failure = new Error('No RPC to read from');
+  for (const rpc of ordered) {
+    try {
+      const doc = await readFrom(rpc, id, withUsd);
+      lastAnswered = rpc;
+      return doc;
+    } catch (e) {
+      failure = e;
+      console.warn('Stamptime: could not read the stamp through ' + rpc + '.', e);
+    }
+  }
+  throw failure;
+}
+
+async function readFrom(rpc, id, withUsd) {
   const client = clientFor(rpc);
   const dollars = withUsd ? usdSeries() : Promise.resolve(null);   // alongside the chain reads, never in their way
 

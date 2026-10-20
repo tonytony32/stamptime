@@ -152,7 +152,7 @@ A first visit costs about a dozen small requests, under a second on the public R
 
 What cannot change (who paid, past prices, block times, when a batch ran out) is kept for the life of the tab, and the event lists fetch only what is new. Nothing needs an archive node.
 
-**Load.** Every visitor reads the chain on their own, as on Batch Explorer, and a link shared widely sends that traffic to the RPC in `stamptime-rpc`. Point it at a node of your own, or set `stamptime-api` and serve the document from a cache.
+**Load.** Every visitor reads the chain on their own, as on Batch Explorer, and a link shared widely sends that traffic to the RPCs in `stamptime-rpc`. The page uses the first that answers and falls back to the next, so one node down or rate limited does not take it down. Add a node of your own to the list, or set `stamptime-api` and serve the document from a cache.
 
 **viem.** Version 2.47.6, the one Batch Explorer uses, is vendored as `public/vendor/viem.js`: 118 KB, 35 KB compressed, built from [`tools/viem.entry.js`](tools/viem.entry.js), which says how to build it again. `chain.js` and viem load only when a real stamp is asked for, so the demo never touches the chain.
 
@@ -328,7 +328,7 @@ const address = tx.from
 
 `totalAmount` in `BatchCreated` and `topupAmount` in `BatchTopUp` are both totals for the whole batch (per chunk amount times `2 ** depth`), in PLUR. `usd` is that amount divided by 1e16, times the BZZ to USD rate at the time.
 
-**Log ranges.** The Gnosis RPC in `stamptime-rpc` answers `eth_getLogs` filtered by batch id from the deployment block in one request, as it does for Batch Explorer, and 30 days of `PriceUpdate` in another. Other RPCs may cap ranges: read in windows then (10,000 blocks is a safe start), and follow the head rather than reading the history again.
+**Log ranges.** Both RPCs in `stamptime-rpc` answer `eth_getLogs` filtered by batch id from the deployment block in one request, as `rpc.gnosis.gateway.fm` does for Batch Explorer, and 30 days of `PriceUpdate` in another. Many public RPCs cap ranges (to 50,000 or 10,000 blocks on the free tiers tried): read in windows then (10,000 blocks is a safe start), and follow the head rather than reading the history again.
 
 ### 3. Pricing
 
@@ -368,10 +368,10 @@ This is all in `public/stamp.js`, and it explains how often the page reads the s
 - **Ranking:** groups `contributions` by address, sums days, BZZ and dollars, sorts by days given. The row of the `owner` address is labelled Owner, whoever paid for `BatchCreated` ("Owner, created the stamp" when it was the owner); a creator who is not the owner reads "Created the stamp". While the stamp is paid there is an open slot at the end: "Keep it alive: 30 days from about $1.37, any wallet".
 - **Record mode:** until the date in `stamptime-topups-from` the page is the record: what the stamp holds, who kept it alive and how time is added. The tiles are How time is added (a disclosure in Stamp details) and How postage works (the Swarm docs), and the footer carries the ASCI line. From that date the actions switch on. The headline, the keepers and Stamp details are the same in both modes. Remove the meta tag for the full page from day one.
 - **Record build:** `node tools/build-record.mjs` writes `dist/record/`, the page as a public record, for places where only the record should be reachable: an event, an embed, a partner's page. It reads the stamp the same way, without dollars, and shows the same headline, bar, keepers and Stamp details, fixed in record mode on `<html>` so it does not depend on the visitor's clock. The full page's own markup sits between `<!-- full-only -->` markers in `index.html`, which is how the build tells the two apart; the build checks its output before it finishes. Serve `dist/record/` where the record is the product; serve `public/` for the full page.
-- **Configuration** lives in three meta tags in `index.html`, and a fourth when an API serves the stamp. `stamptime-rpc` is the Gnosis RPC the page reads from; `stamptime-api`, when present, replaces it (see [The stamp document](#the-stamp-document)). In the Beeport template, `{id}` becomes the batch id and `{days}`, if present, the number of days picked in the sheet (30, 182 or 365), for when Beeport accepts a duration. The "Create another" tile links to Beeport's home directly; change it too if you move Beeport.
+- **Configuration** lives in three meta tags in `index.html`, and a fourth when an API serves the stamp. `stamptime-rpc` lists the Gnosis RPCs the page reads from, separated by spaces: it uses the first that answers and stays with it. `stamptime-api`, when present, replaces them (see [The stamp document](#the-stamp-document)). In the Beeport template, `{id}` becomes the batch id and `{days}`, if present, the number of days picked in the sheet (30, 182 or 365), for when Beeport accepts a duration. The "Create another" tile links to Beeport's home directly; change it too if you move Beeport.
 
 ```html
-<meta name="stamptime-rpc" content="https://rpc.gnosis.gateway.fm">
+<meta name="stamptime-rpc" content="https://rpc.gnosis.gateway.fm https://rpc.gnosischain.com">
 <meta name="stamptime-beeport" content="https://beeport.eth.limo/?topup={id}">
 <meta name="stamptime-topups-from" content="2026-11-07T00:00:00Z">
 <!-- optional: <meta name="stamptime-api" content="/api/v1"> -->
@@ -399,7 +399,7 @@ location /stamp/ {
 
 On Swarm itself, upload `public/` as a website with `index.html` as both the index and the error document, so unknown paths fall back to the page. Since the page reads the chain itself, that is all it needs: no server anywhere.
 
-**The RPC.** Any Gnosis JSON-RPC that allows browser requests (CORS) and `eth_getLogs` over the batch's history, set in `stamptime-rpc`. The default is the one Batch Explorer uses.
+**The RPCs.** Any Gnosis JSON-RPC that allows browser requests (CORS) and `eth_getLogs` over the batch's history, listed in `stamptime-rpc` in the order to try them. The defaults are the one Batch Explorer uses, `rpc.gnosis.gateway.fm`, then Gnosis's own, `rpc.gnosischain.com`. If one fails partway through a read, the whole read is done again on the next, so the footer always names the RPC the page shows.
 
 **An API, if you want one.** Wherever you like, as long as `stamptime-api` in `index.html` points at it. Same origin is simplest. Keep CORS open for the badge.
 
@@ -430,7 +430,7 @@ These came out of the research and the design rounds. Please keep them when you 
 | 1 | Does Beeport accept `?topup=<batchId>`, and can it send the visitor back to the page after paying? | Without it the visitor lands on Beeport's Buy flow and could buy a new stamp by mistake. The sheet already offers "copy the id and paste it into Beeport's Top up" as a fallback. |
 | 2 | Who signs the `topUp` transaction when someone pays through Beeport with another token or chain? | If Beeport executes top ups from a shared relayer address, `tx.from` is the relayer for everyone and the ranking becomes one row. We would need the original payer from Beeport, or to label those rows "via Beeport". |
 | 3 | BZZ to USD: CoinGecko, as Batch Explorer, or another source? | `chain.js` uses CoinGecko's free API, with no key: one request for a year of daily rates. Payments older than a year show no dollars; a source with a longer history would fill them in. |
-| 4 | Is the public RPC enough for a link shared widely? | Every visitor reads the chain, as on Batch Explorer. The default, `rpc.gnosis.gateway.fm`, answers every read the page needs; a busy link may want its own node in `stamptime-rpc`. No archive node is needed. |
+| 4 | Are public RPCs enough for a link shared widely? | Every visitor reads the chain, as on Batch Explorer, from their own browser. The two defaults answer every read the page needs and back each other up. Their rate limits are not known yet; check them before a big launch. A busy link may want its own node at the top of `stamptime-rpc`. No archive node is needed. |
 | 5 | Price range: 30 day history or a fixed band for v1? | Settled: `chain.js` reads the 30 day history in one request. |
 | 6 | Badge and donate scripts (`ethswarm.org/stamp/badge.js`, `donate.js`) | The page already shows the embed lines. The badge needs only the stamp document, from `chain.js` or an API. Donate sends to the owner's address; it needs a decision on chain and token. Not needed for a first release. |
 | 7 | Batches copied from an older PostageStamp deployment | Their `BatchCreated` on the current contract may be the copy, not the original purchase, so "Created" could show the migration date. Fine for v1; worth a look. |
@@ -448,7 +448,8 @@ These came out of the research and the design rounds. Please keep them when you 
 - [ ] No USD rate: `usdPerDay` and every `usd` are `null`; the page hides dollars and the Add time sheet shows BZZ alone.
 - [ ] A one or two day batch (common on Swarm): one block on the bar, mostly fade. Looks right.
 - [ ] A five year batch: about sixty thin blocks. Readable on desktop, a texture on a phone. Acceptable for v1.
-- [ ] RPC down or unreachable: the page shows "Could not read the stamp" with a retry.
+- [ ] First RPC down or unreachable: the page reads through the next one, and the footer names it.
+- [ ] Every RPC down: the page shows "Could not read the stamp" with a retry.
 
 ---
 
@@ -486,7 +487,7 @@ stamptime/
 - [ ] The page reads active, expired and not found batches from Gnosis, and each document it builds matches `api/stamp.schema.json`.
 - [ ] Both live values are read at one pinned block, and `chain.blockTime` is that block's time.
 - [ ] A host serves the page, at `/stamp/{id}` or with `?id=`, and `?demo=active` still works there.
-- [ ] The RPC in `stamptime-rpc` holds up under a link shared widely, or the page points at a node of its own.
+- [ ] The RPCs in `stamptime-rpc` hold up under a link shared widely, or a node of its own goes first in the list.
 - [ ] Open question 1 has an answer, or the copy fallback in the sheet is accepted as the first release behaviour.
 - [ ] Tested on a phone on a slow connection.
 
