@@ -270,14 +270,6 @@ details p{margin:8px 0 0;max-width:60ch;line-height:1.55}
 details a{color:var(--primary)}
 .warn{margin-top:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--primary-soft);color:var(--ink)}
 
-.badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:4px 12px 4px 6px;
-  border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--card);box-shadow:var(--shadow);
-  font-size:12px;font-weight:600;color:var(--ink)}
-.badge .dot{display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--primary)}
-.badge small{font-weight:400;color:var(--muted)}
-.code{display:block;margin-top:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--subtle);color:var(--ink);
-  font-family:var(--mono);font-size:11px;overflow-wrap:anywhere}
-
 /* ---------- 11. The QR code: the batch id in a small card under the icon that opened it, scaling in from there
    and fading out a little faster. Where anchoring is not supported it sits centred, as a popover does by default */
 

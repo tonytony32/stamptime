@@ -45,7 +45,6 @@
   const API = (readMeta('stamptime-api') || '').replace(/\/$/, '') || null;
   const GNOSISSCAN = 'https://gnosisscan.io';
   const BATCH_EXPLORER = 'https://batch-explorer.github.io/batch/';
-  const BADGE_JS = 'https://ethswarm.org/stamp/badge.js';
 
   // What this browser remembers. Nothing is ever sent anywhere.
   const KEYS = {
@@ -543,7 +542,7 @@
       <span class="amt"></span>`;
   }
 
-  // The facts, as Batch Explorer shows them, and the embed lines.
+  // The facts, as Batch Explorer shows them.
   function renderDetails(stamp, view) {
     const ownerShort = abbreviate(stamp.owner, 6, 4);
     $('batchId').textContent = stamp.batchId;
@@ -564,10 +563,6 @@
     $('contract').textContent = stamp.chain.contract;
     $('eventsLink').href = BATCH_EXPLORER + stamp.batchId;
     $('contractLink').href = GNOSISSCAN + '/address/' + stamp.chain.contract + '#code';
-    $('badgeLine').textContent = view.expired
-      ? (view.end ? 'ran out around ' + formatDate(view.end) : 'ran out')
-      : 'paid until about ' + formatDate(view.end);
-    $('badgeCode').textContent = '<script src="' + BADGE_JS + '" data-batch="' + stamp.batchId + '"></script>';
   }
 
   // The batch id as a QR code, in the popover the QR icons open. qr.js loads the first time a whole stamp is drawn,
