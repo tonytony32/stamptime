@@ -9,8 +9,8 @@
     - currentTotalOutPayment() and lastPrice(), both at the same block
     - PriceUpdate events: the last 30 days for the range, and the one in force at each payment for the days it bought
     - the sender of each payment's transaction, since BatchTopUp carries no payer
-  plus one request to CoinGecko for BZZ to USD over the last year, the source Batch Explorer uses, skipped in record
-  mode. Without it the page shows BZZ alone.
+  plus, only when asked with `withUsd`, one request to CoinGecko for BZZ to USD over the last year, the source Batch
+  Explorer uses. The page never asks: it shows BZZ alone.
 
   What cannot change (senders, past prices, block times) is kept for the life of the tab, and the event lists only
   fetch what is new, so the page's re reads while it stays open cost four small requests.
@@ -288,8 +288,8 @@ function capacityOf(depth) {
 
 // `id`: 64 lower case hex characters, no 0x. `rpcs`: Gnosis JSON-RPC urls, tried in order until one gives the whole
 // document, starting from the one that answered last, so a node that is down costs one wait, not one per read.
-// `withUsd`: false skips CoinGecko.
-export async function readStamp(id, { rpcs, withUsd = true }) {
+// `withUsd`: true adds dollars from CoinGecko, for a document served to others. The page leaves it off.
+export async function readStamp(id, { rpcs, withUsd = false }) {
   const ordered = rpcs.includes(lastAnswered) ? [lastAnswered, ...rpcs.filter(rpc => rpc !== lastAnswered)] : rpcs;
   let failure = new Error('No RPC to read from');
   for (const rpc of ordered) {

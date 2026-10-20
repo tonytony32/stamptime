@@ -11,7 +11,7 @@
 
   The file reads top to bottom:
      1. Configuration            6. Motion: new time arriving
-     2. Helpers                  7. Add time: the sheet, the hand off, the wait
+     2. Helpers                  7. Add time: the preview under the bar
      3. Reading a stamp          8. Feedback: toast, announcements, copy
      4. Page state and timers    9. Loading and keeping fresh
      5. Rendering               10. Wiring
@@ -27,21 +27,14 @@
   const BLOCK_SECONDS = 5;                     // Gnosis block time
   const PRICE_ROUND_MS = 152 * BLOCK_SECONDS * 1000;   // the price changes at most once per 152 blocks: re read that often
   const FETCH_TIMEOUT_MS = 10 * 1000;
-  const PREFLIGHT_TIMEOUT_MS = 4 * 1000;       // shorter: the Beeport tab is already open, and blank, while it runs
-  const POLL_MS = 10 * 1000;                   // while waiting for a top up
-  const DEMO_POLL_MS = 2500;
-  const WAIT_MAX_MS = 10 * 60 * 1000;
-  const JUST_NOW_MS = 60 * 60 * 1000;          // your own top up reads "just now" for an hour
   const TOAST_MS = 3500;
   const TOAST_LONG_MS = 10 * 1000;             // long enough to copy a value by hand
-  const OPEN_SLOT_DAYS = 30;
 
-  // The Add time sheet. Six months starts selected.
-  // `label` names the option in the full sheet; `name` and `tag` in the record's sheet, which previews on the bar.
+  // Add time's three stretches, previewed on the bar. Half a year starts selected.
   const DURATIONS = [
-    { days: 30, label: '30 days', name: 'A month', tag: 'the polite nudge' },
-    { days: 182, label: '6 months', name: 'Half a year', tag: 'the comfortable middle' },
-    { days: 365, label: '1 year', name: 'A year', tag: 'the long view' }
+    { days: 30, name: 'A month' },
+    { days: 182, name: 'Half a year' },
+    { days: 365, name: 'A year' }
   ];
   const DEFAULT_DAYS = 182;
 
@@ -50,23 +43,12 @@
   // fetchStamp). Both defaults answer eth_getLogs over a batch's whole history; many public RPCs cap the range.
   const RPCS = (readMeta('stamptime-rpc') || 'https://rpc.gnosis.gateway.fm https://rpc.gnosischain.com').split(/\s+/).filter(Boolean);
   const API = (readMeta('stamptime-api') || '').replace(/\/$/, '') || null;
-  const BEEPORT = readMeta('stamptime-beeport') || 'https://beeport.eth.limo/?topup={id}';   // {id}, and optionally {days}
-  // Record mode: until the date in the meta tag the page only shows the record. No Add time, no Beeport, no
-  // dollars, and the ASCI line in the footer. Without the meta tag, or once the date has passed, the full page.
-  // The record build (tools/build-record.mjs) sets mode-record on <html>, so that build is the record whatever the date
-  // or the clock.
-  const TOPUPS_FROM = Date.parse(readMeta('stamptime-topups-from') || '');
-  const RECORD = document.documentElement.classList.contains('mode-record') || (!isNaN(TOPUPS_FROM) && Date.now() < TOPUPS_FROM);
-  document.documentElement.classList.add(RECORD ? 'mode-record' : 'mode-full');
   const GNOSISSCAN = 'https://gnosisscan.io';
   const BATCH_EXPLORER = 'https://batch-explorer.github.io/batch/';
   const BADGE_JS = 'https://ethswarm.org/stamp/badge.js';
-  const DONATE_JS = 'https://ethswarm.org/stamp/donate.js';
 
   // What this browser remembers. Nothing is ever sent anywhere.
   const KEYS = {
-    handoff: 'stamptime.handoff',              // sessionStorage: a top up handed to Beeport and not seen yet
-    you: 'stamptime.you',                      // sessionStorage: which contribution was yours
     seen: id => 'stamptime.seen.' + id         // localStorage: the last version of each stamp shown
   };
 
@@ -77,16 +59,18 @@
   // Motion. EASE_OUT for things arriving, EASE_IN_OUT for things moving on screen. Durations in ms.
   const EASE_OUT = 'cubic-bezier(.23,1,.32,1)';
   const EASE_IN_OUT = 'cubic-bezier(.77,0,.175,1)';
-  const GROW = [{ transform: 'scale(.6)', opacity: 0 }, { transform: 'none', opacity: 1 }];   // from a little smaller, never from nothing
   const MOTION = {
-    enter: { duration: 320, stagger: 40 },                         // first sight: the months add up one by one
-    glide: { duration: 560 },                                      // months, rows and the list moving to their new place
-    settle: { duration: 340, delay: 440, stagger: 45, todayAfter: 260 },   // new months, once the old ones made room
+    enter: { duration: 420, stagger: 70, spread: 480 },            // first sight: the months fill in from the left, one by one
+    glide: { duration: 560 },                                      // rows and the list moving to their new place
+    arrival: { duration: 560, easing: EASE_IN_OUT, stagger: 45, staggerMax: 360 },   // the bar making room for new time
     sharpen: { duration: 380 },                                    // the sentence blurring into its new date
     count: { duration: 720 },                                      // the number counting up
     card: { duration: 680, delay: 120, stagger: 90, rise: 22,     // a new keeper rising to its rank
       lands: 820, untint: 2000, done: 3000 },                      // done outlasts the .9s tint fade in stamp.css
     fade: { duration: 240 },                                       // reduced motion: the new keeper only fades in
+    preview: { duration: 300, easing: EASE_OUT, stagger: 18, staggerMax: 160,   // the bar following a pick in Add time: quick,
+      enter: 240, exit: 150, swap: 180 },                          // it follows a hand. Pieces coming, going, changing
+    toast: { enter: 240, exit: 160 },
     replay: 520                                                    // how long a remembered version shows before the new time arrives
   };
 
@@ -94,8 +78,7 @@
   // ---------- 2. Helpers: no page state
 
   const $ = id => document.getElementById(id);
-  // The full page's own markup sits between the full-only markers and is not part of the record build: these write only
-  // when the element is there, so one script serves both builds.
+  // These write only when the element is there.
   const setText = (id, text) => { const el = $(id); if (el) el.textContent = text; };
   const setDisabled = (id, on) => { const el = $(id); if (el) el.disabled = on; };
   const clamp01 = x => Math.max(0, Math.min(1, x));
@@ -105,7 +88,6 @@
   const formatDate = date => date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });   // 27 Dec 2026
   const formatDayMonth = date => date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });              // 27 Dec
   const formatNumericDate = date => date.toLocaleDateString('en-GB');                                                // 27/12/2026
-  const formatUsd = n => '$' + (n < 10 ? n.toFixed(2) : Math.round(n).toLocaleString('en-US'));
   const formatBzz = n => (n < 100 ? n.toFixed(1) : Math.round(n).toLocaleString('en-US')) + ' BZZ';
   const formatBzzPrice = n => Number(n.toPrecision(3)).toLocaleString('en-US') + ' BZZ';                           // 1.14 BZZ, 0.174 BZZ
   const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
@@ -135,7 +117,6 @@
     set(key, value) { try { area().setItem(key, JSON.stringify(value)); } catch (e) { /* storage off */ } },
     remove(key) { try { area().removeItem(key); } catch (e) { /* storage off */ } }
   });
-  const session = storageIn(() => sessionStorage);
   const local = storageIn(() => localStorage);
 
 
@@ -180,13 +161,13 @@
   }
 
   // The stamp read from Gnosis by chain.js. It loads, and viem with it, only when a real stamp is asked for, so the
-  // demo never touches the chain. The record asks for no dollars, since it shows none.
+  // demo never touches the chain. It asks for no dollars, since the page shows none.
   async function readFromChain(id, timeoutMs) {
     let timer;
     const timeout = new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error('Gnosis did not answer in time')), timeoutMs); });
     try {
       const chain = await Promise.race([import('./chain.js'), timeout]);
-      return await Promise.race([chain.readStamp(id, { rpcs: RPCS, withUsd: !RECORD }), timeout]);
+      return await Promise.race([chain.readStamp(id, { rpcs: RPCS, withUsd: false }), timeout]);
     } finally {
       clearTimeout(timer);
     }
@@ -238,20 +219,18 @@
     return paid ? new Date(Math.min(now.getTime(), created.getTime() + paid * DAY_MS)) : now;
   }
 
-  // The ranking: one row per address, days and dollars added up, most days first. Owner is the batch owner from
+  // The ranking: one row per address, days and BZZ added up, most days first. Owner is the batch owner from
   // the document; whoever paid for BatchCreated may be someone else, such as a relayer.
-  function keepersOf(stamp, yourTx) {
+  function keepersOf(stamp) {
     const ownerKey = stamp.owner.toLowerCase();
     const byAddress = new Map();
     for (const c of stamp.contributions) {
       const key = c.address.toLowerCase();
       const keeper = byAddress.get(key) ||
-        { key, address: c.address, owner: key === ownerKey, created: false, you: false, days: 0, usd: 0, usdKnown: true, bzz: 0, bzzKnown: true, payments: 0, last: null };
+        { key, address: c.address, owner: key === ownerKey, created: false, days: 0, bzz: 0, bzzKnown: true, payments: 0, last: null };
       keeper.days += c.days;
-      if (c.usd == null) keeper.usdKnown = false; else keeper.usd += c.usd;
       if (c.bzz == null) keeper.bzzKnown = false; else keeper.bzz += c.bzz;
       if (c.kind === 'created') keeper.created = true;
-      if (yourTx && c.tx === yourTx) keeper.you = true;
       keeper.payments++;
       if (!keeper.last || new Date(c.time) > new Date(keeper.last.time)) keeper.last = c;
       byAddress.set(key, keeper);
@@ -265,19 +244,6 @@
   // What `stamp` has that `base` did not. Time only arrives between two active versions.
   const addedSince = (base, stamp) => isActive(base) && isActive(stamp) ? contributionsSince(txsOf(base), stamp) : [];
 
-  // The visitor's top up: the newest contribution that was not there when they left for Beeport. If someone else
-  // tops up in the same minutes, theirs may be taken for the visitor's: the chain does not say who used Beeport.
-  function landedTopUp(stamp, handoff) {
-    if (!isActive(stamp)) return null;
-    return contributionsSince(handoff.txs, stamp).sort((a, b) => new Date(b.time) - new Date(a.time))[0] || null;
-  }
-
-  // Which contribution was yours, when you topped this stamp up from this tab.
-  function yourTxFor(batchId) {
-    const you = session.get(KEYS.you);
-    return you && you.id === batchId ? you.tx : null;
-  }
-
   // The version of this stamp shown on an earlier visit, when this browser kept one the page can still draw.
   function rememberedVersion(batchId) {
     try { return checked(local.get(KEYS.seen(batchId)), batchId); } catch (e) { return null; }
@@ -288,10 +254,9 @@
   // Everything that changes while the page is open. Each variable names what writes it.
 
   let current = null;              // the stamp on screen: showStamp(); switchDemo() clears it
-  let pending = null;              // a top up handed to Beeport that has not landed yet: setPending()
-  let chosenDays = DEFAULT_DAYS;   // the duration picked in the sheet, kept across re reads: chooseDuration()
-  let opener = null;               // what opened the sheet, to give focus back on close: openSheet()
-  let handingOff = false;          // Continue was pressed and the stamp is being checked once more: continueToBeeport()
+  let chosenDays = DEFAULT_DAYS;   // the duration picked in Add time, kept across re reads: chooseDuration()
+  let previewDays = 0;             // the stretch drawn on the bar right now, 0 for none: showPreview(), clearPreview()
+  let opener = null;               // what opened Add time, to give focus back on close: openAdder()
   let generation = 0;              // bumped by start(), so an older, slower read never overwrites a newer one
   let countRun = 0;                // bumped to stop the number counting up: countTo(), renderHeadline(), renderLoading()
   let paintBlockClock = null;      // repaints the live block: startBlockClock(), stopBlockClock()
@@ -322,13 +287,14 @@
   // One class on <body> carries the state for the CSS: loading, paid, soon, expired, missing or error.
   function setState(name) {
     document.body.className = 'state-' + name;
+    if (name !== 'paid' && name !== 'soon') hideAdder();   // nothing to add time to
     // the skeleton's "00 days left" is decoration, not a number to read out
     const number = document.querySelector('.num');
     if (name === 'loading') number.setAttribute('aria-hidden', 'true'); else number.removeAttribute('aria-hidden');
   }
 
   // Draws a stamp document. animate: 'enter' on first sight, 'update' when new time arrives in place.
-  function showStamp(stamp, { animate = null, yourTx = yourTxFor(stamp.batchId) } = {}) {
+  function showStamp(stamp, { animate = null } = {}) {
     // for an update, measure what is on screen before anything changes, so it can move from there
     const before = animate === 'update' && isActive(current) ? measureLayout() : null;
     current = stamp;
@@ -337,14 +303,15 @@
 
     const view = describe(stamp);
     setState(view.expired ? 'expired' : view.soon ? 'soon' : 'paid');
+    const previewing = isAdderOpen();
     renderHeadline(stamp, view);
-    renderBar(view, animate === 'enter');
-    renderKeepers(stamp, view, yourTx);
+    renderBar(view, animate === 'enter', previewing ? chosenDays : 0, before ? 'arrival' : null);
+    renderKeepers(stamp, view);
     renderDetails(stamp, view);
-    renderSheet(stamp, view);
+    renderAdder(stamp);
     renderActions();
     startBlockClock(stamp, view);
-    if (RECORD && $('sheet') && !$('sheet').hidden) showPreview(chosenDays);
+    if (previewing) showPreview(chosenDays, { bar: false });
     local.set(KEYS.seen(stamp.batchId), stamp);
     if (before) playArrival(before, view);
   }
@@ -377,9 +344,13 @@
 
   // The bar: the whole life of the stamp, one block per month, always filling the width. Spent time veiled,
   // today as the line, the time ahead bright, and the estimate dissolving across the end.
-  // Each month is an <i>; its colour layers, the fill and the spent veil, are <b>s.
-  // extraDays: the record's preview. Months beyond the paid end are drawn dashed, as what that stretch would add.
-  function renderBar(view, enter, extraDays = 0) {
+  // Each month is an <i>; its colour layers, the fill, the spent veil and the plan, are <b>s.
+  // extraDays: Add time's preview. The stretch it would add is hatched from the paid end on, in the plan layer,
+  // and the bar takes in the months it needs, so paying for more squeezes more blocks in, as it would.
+  // The months are kept from one render to the next, so the bar can move instead of jumping. `motion` names the pace
+  // in MOTION ('preview' or 'arrival'): months the bar gains widen in one after another from where it reached, months
+  // it loses narrow away from the far end, and the hatching follows (stamp.css). Without it the bar is drawn at once.
+  function renderBar(view, enter, extraDays = 0, motion = null) {
     const bar = $('months');
     const toMonths = date => daysBetween(view.created, date) / MONTH_DAYS;
     const spent = toMonths(view.expired ? view.barEnd : view.now);
@@ -390,46 +361,88 @@
     const band = view.expired ? 0 : Math.max(view.giveOrTake / MONTH_DAYS, roughCount * 0.1);
     const fadeStart = end - band / 2, fadeEnd = end + band / 2;
     const life = view.expired ? end : fadeEnd;          // where the colour runs out
-    const count = Math.max(1, Math.ceil(life));
+    const planEnd = end + extraDays / MONTH_DAYS;       // where the preview would take it
+    const count = Math.max(1, Math.ceil(life), Math.ceil(planEnd));
     const opacity = x => view.expired ? 1 : clamp01((fadeEnd - x) / (fadeEnd - fadeStart));
 
-    const fills = [];
-    const months = Array.from({ length: count }, (_, m) => {
-      const month = document.createElement('i');
-      month.className = 'month';
+    const pace = motion && !prefersReducedMotion() ? MOTION[motion] : null;
+    const reached = bar.reach == null ? planEnd : bar.reach;   // where the colour or the hatching reached last time
+    const delay = m => {
+      if (!pace) return 0;
+      const steps = planEnd >= reached ? m - Math.floor(reached) : Math.ceil(reached) - 1 - m;
+      return Math.min(pace.staggerMax, Math.max(0, steps) * pace.stagger);
+    };
+    bar.classList.toggle('still', !pace);
+    if (pace) {
+      bar.style.setProperty('--glide', pace.duration + 'ms');
+      bar.style.setProperty('--glide-ease', pace.easing);
+    }
+
+    const fills = [], refreshed = [], kept = [...bar.children];
+    for (let m = 0; m < Math.max(count, kept.length); m++) {
+      let month = kept[m];
+      if (m >= count) {
+        if (month) narrowAway(month, pace, delay(m));
+        continue;
+      }
+      if (!month) {
+        month = document.createElement('i');
+        month.className = pace ? 'month entering' : 'month';
+        bar.append(month);
+      } else if (month.leaving) {
+        clearTimeout(month.leaving);   // wanted again before it was gone: it widens back from where it is
+        month.leaving = null;
+        month.classList.remove('leaving');
+      }
+      month.style.setProperty('--d', delay(m) + 'ms');
+      // the fill and the veil are drawn afresh; the plan stays, so its width can move
+      const plan = month.querySelector('.plan') || layer('plan plan-fill');
+      for (const el of [...month.children]) if (el !== plan) el.remove();
+      const layers = [];
       if (life - m > 0) {
         const fill = layer('fill');
         fill.style.webkitMask = fill.style.mask = fadeMask(m, fadeStart, fadeEnd, opacity);
-        month.append(fill);
+        layers.push(fill);
         fills.push(fill);
+        if (motion === 'arrival' && m >= Math.floor(reached) && !month.classList.contains('entering')) refreshed.push(fill);
       }
       const spentShare = clamp01(spent - m);
       if (spentShare > 0 && !view.expired) {
         const veil = layer('spent');
         veil.style.setProperty('--q', spentShare * 100 + '%');
-        month.append(veil);
+        layers.push(veil);
       }
-      if (!view.expired && spent >= m && spent < m + 1) {
-        month.classList.add('now');
-        month.style.setProperty('--x', (spent - m) * 100 + '%');
-      }
-      return month;
-    });
-    const ghosts = extraDays > 0 ? Math.max(0, Math.ceil(end + extraDays / MONTH_DAYS) - count) : 0;
-    for (let g = 0; g < ghosts; g++) {
-      const month = document.createElement('i');
-      month.className = 'month ghost';
-      month.append(layer('fill'));
-      months.push(month);
+      month.prepend(...layers);
+      if (!plan.parentNode) month.append(plan);
+      const holdsToday = !view.expired && spent >= m && spent < m + 1;
+      month.classList.toggle('now', holdsToday);
+      if (holdsToday) month.style.setProperty('--x', (spent - m) * 100 + '%'); else month.style.removeProperty('--x');
+      const planFrom = Math.max(m, end), planTo = Math.min(m + 1, planEnd);
+      plan.style.setProperty('--a', clamp01(planFrom - m) * 100 + '%');
+      plan.style.setProperty('--w', Math.max(0, planTo - planFrom) * 100 + '%');
     }
-    bar.style.setProperty('--n', count + ghosts);
-    bar.replaceChildren(...months);
+    if (pace) {
+      bar.getBoundingClientRect();   // lay the new months out at no width, so they widen from there
+      for (const month of bar.querySelectorAll('.entering')) month.classList.remove('entering');
+      // where the end moved inside a month, its fill brightens into the new fade rather than switching
+      for (const fill of refreshed) fill.animate([{ opacity: .45 }, { opacity: 1 }], { duration: pace.duration, easing: EASE_OUT });
+    }
+    bar.reach = planEnd;
     if (enter && !view.expired && !prefersReducedMotion()) playEnter(fills);
 
     $('startCap').textContent = 'Created ' + formatDayMonth(view.created);
     $('endCap').innerHTML = view.expired
       ? (view.end ? html`ran out ${formatDayMonth(view.end)}` : '')
       : html`<span aria-hidden="true">~</span><span class="sr">about </span>${formatDayMonth(view.end)}`;
+  }
+
+  // A month the bar no longer needs narrows away, or goes at once when nothing moves.
+  function narrowAway(month, pace, delay) {
+    if (!pace) return month.remove();
+    if (month.leaving) return;
+    month.style.setProperty('--d', delay + 'ms');
+    month.classList.add('leaving');
+    month.leaving = setTimeout(() => month.remove(), pace.duration + delay + 50);
   }
 
   function layer(className) {
@@ -445,13 +458,11 @@
     return 'linear-gradient(90deg, ' + [colorStop(0, 0), colorStop(a, a * 100), colorStop(b, b * 100), colorStop(1, 100)].join(', ') + ')';
   }
 
-  // The names, ranked by days given, and the open slot as the quiet way in while the stamp is paid.
-  function renderKeepers(stamp, view, yourTx) {
-    const keepers = keepersOf(stamp, yourTx);
-    const recent = view.now - JUST_NOW_MS;
-    const rows = keepers.map((keeper, i) =>
-      listItem(keeper.key, keeper.you ? 'you' : '', keeperRow(keeper, i + 1, view, new Date(keeper.last.time) >= recent)));
-    if (!view.expired) rows.push(listItem('slot', 'slot', openSlotRow(keepers.length + 1, stamp)));
+  // The names, ranked by days given, and while the stamp is paid an open slot that states the rule.
+  function renderKeepers(stamp, view) {
+    const keepers = keepersOf(stamp);
+    const rows = keepers.map((keeper, i) => listItem(keeper.key, '', keeperRow(keeper, i + 1)));
+    if (!view.expired) rows.push(listItem('slot', 'slot', openSlotRow(keepers.length + 1)));
     $('rank').replaceChildren(...rows);
   }
 
@@ -464,20 +475,17 @@
     return li;
   }
 
-  function keeperRow(keeper, rank, view, justNow) {
-    const who = keeper.you
-      ? html`<span>You</span>`
-      : externalLink(GNOSISSCAN + '/address/' + keeper.address, abbreviate(keeper.address, 6, 4), 'chain-link', 'address on Gnosisscan');
+  function keeperRow(keeper, rank) {
+    const who = externalLink(GNOSISSCAN + '/address/' + keeper.address, abbreviate(keeper.address, 6, 4), 'chain-link', 'address on Gnosisscan');
     const tx = externalLink(GNOSISSCAN + '/tx/' + keeper.last.tx, abbreviate(keeper.last.tx, 8, 0), 'chain-link', 'transaction on Gnosisscan');
     const bzz = keeper.bzzKnown ? html`<span class="bzz">${formatBzz(keeper.bzz)}</span>` : '';
-    const usd = !RECORD && !view.expired && keeper.usdKnown ? html`<span class="usd">${formatUsd(keeper.usd)}</span>` : '';
     return html`<span class="pos">${rank}</span>
-      <span class="who">${who}<small>${keeperLine(keeper, justNow)} · tx ${tx}</small></span>
-      <span class="amt">${formatDays(keeper.days)}${bzz}${usd}</span>`;
+      <span class="who">${who}<small>${keeperLine(keeper)} · tx ${tx}</small></span>
+      <span class="amt">${formatDays(keeper.days)}${bzz}</span>`;
   }
 
-  // "Owner, created the stamp, 9 Oct", "Kept it alive 3 times, last 12 Oct", "Kept it alive, just now"…
-  function keeperLine(keeper, justNow) {
+  // "Owner, created the stamp, 9 Oct", "Kept it alive 3 times, last 12 Oct"…
+  function keeperLine(keeper) {
     const when = formatDayMonth(new Date(keeper.last.time));
     if (keeper.created) {
       const who = keeper.owner ? 'Owner, created' : 'Created';
@@ -485,26 +493,17 @@
         ? who + ' it and kept it alive ' + plural(keeper.payments - 1, 'time') + ', last ' + when
         : who + ' the stamp, ' + when;
     }
-    if (keeper.you && justNow) return 'Kept it alive, just now';
     const kept = keeper.owner ? 'Owner, kept' : 'Kept';
     return keeper.payments > 1
       ? kept + ' it alive ' + plural(keeper.payments, 'time') + ', last ' + when
       : kept + ' it alive, ' + when;
   }
 
-  function openSlotRow(rank, stamp) {
-    // record mode: the slot states the rule and offers nothing
-    if (RECORD) {
-      return html`<span class="pos">${rank}</span>
-        <span class="who">Open<small>Any address can add BZZ to it. The owner stays the owner.</small></span>
-        <span class="amt"></span>`;
-    }
-    const perDay = stamp.pricing && stamp.pricing.usdPerDay;
-    const from = perDay ? ' from about ' + formatUsd(perDay * OPEN_SLOT_DAYS) : '';
+  // The slot states the rule and offers nothing.
+  function openSlotRow(rank) {
     return html`<span class="pos">${rank}</span>
-      <span class="who">Open<small>Keep it alive: ${OPEN_SLOT_DAYS} days${from}, any wallet</small></span>
-      <span class="amt"><button type="button" class="btn slot-btn" data-action="add-time" aria-haspopup="dialog"
-        aria-label="Take it, add time to this stamp">Take it</button></span>`;
+      <span class="who">Open<small>Any address can add BZZ to it. The owner stays the owner.</small></span>
+      <span class="amt"></span>`;
   }
 
   // The facts, as Batch Explorer shows them, and the embed lines.
@@ -532,8 +531,6 @@
       ? (view.end ? 'ran out around ' + formatDate(view.end) : 'ran out')
       : 'paid until about ' + formatDate(view.end);
     $('badgeCode').textContent = '<script src="' + BADGE_JS + '" data-batch="' + stamp.batchId + '"></script>';
-    setText('donateCode', '<script src="' + DONATE_JS + '" data-batch="' + stamp.batchId + '"></script>');
-    setText('donateOwner', ownerShort);
   }
 
   function expiryRow(view) {
@@ -555,67 +552,74 @@
       : html`<span class="ui">not read</span>`;
   }
 
-  // The Add time sheet: three durations, each counted from the current end and priced at today's price.
-  // Each BZZ amount has its dollar equivalent underneath.
-  // In record mode the sheet is a preview: the same three stretches, what each takes in BZZ, and the bar shows it.
-  function renderSheet(stamp, view) {
+  // Add time: three stretches side by side, each counted from the current end and priced in BZZ at today's price.
+  // The chosen one is drawn on the bar: showPreview(). Nothing leaves the page.
+  function renderAdder(stamp) {
     const options = $('opts');
-    if (!options) return;
     const hadFocus = options.contains(document.activeElement);
-    setText('sheetH', RECORD ? 'Adding time: what would it take?' : 'Add time');
-    setText('sheetLead', RECORD
-      ? 'Pick a stretch and watch the bar. Today\'s storage price, this stamp\'s size, nothing leaves this page.'
-      : 'Extends the whole stamp, ' + stamp.capacity + ', for everyone who uses it. It does not make it yours.');
-    setText('sheetClose', RECORD ? 'Close' : 'Cancel');
-    const contract = $('sheetContract');
-    if (contract) contract.href = GNOSISSCAN + '/address/' + stamp.chain.contract + '#code';
-    options.innerHTML = html`${DURATIONS.map(duration => durationOption(duration, view.end, stamp.pricing || {}))}`;
+    $('adderContract').href = GNOSISSCAN + '/address/' + stamp.chain.contract + '#code';
+    options.innerHTML = html`${DURATIONS.map(duration => durationOption(duration, stamp.pricing || {}))}`;
+    options.style.setProperty('--pick', DURATIONS.findIndex(d => d.days === chosenDays));
     if (hadFocus) checkedOption().focus();
   }
 
-  function durationOption({ days, label, name, tag }, end, { bzzPerDay, usdPerDay }) {
+  function durationOption({ days, name }, { bzzPerDay }) {
     const on = days === chosenDays;
-    const until = end ? 'to about ' + formatDate(new Date(end.getTime() + days * DAY_MS)) : '';
-    const usd = !RECORD && usdPerDay ? '≈ ' + formatUsd(usdPerDay * days) : '';
-    const under = RECORD ? '' : usd;
-    const price = bzzPerDay
-      ? html`<b>≈ ${formatBzz(bzzPerDay * days)}</b>${under ? html`<small>${under}</small>` : ''}`
-      : usd ? html`<b>${usd}</b>` : '';
-    const title = RECORD ? name : label;
-    const line = RECORD && until ? tag + ' · ' + until : RECORD ? tag : until;
+    const bzz = bzzPerDay ? '≈ ' + formatBzz(bzzPerDay * days) : '';
     return html`<button type="button" class="opt" role="radio" aria-checked="${on}" tabindex="${on ? 0 : -1}"
         data-action="choose-duration" data-days="${days}">
-      <span><b>${title}</b><small>${line}</small></span><span class="price">${price}</span>
+      <b>${name}</b>${bzz ? html`<span class="est">${bzz}</span>` : ''}
     </button>`;
   }
 
-  // The record's preview: the chosen stretch drawn on the bar, the number it would reach, the date it would reach.
-  function showPreview(days) {
-    if (!RECORD || !isActive(current)) return;
+  // The preview: the stretch hatched on the bar, the number it would reach, the date it would reach, and the Preview
+  // pill. `glide` moves everything there from what was on screen, for a pick or a pointer: what the preview pushes
+  // aside slides, what it adds fades in, what it changes sharpens into the new value. Without it, as on a re read,
+  // it is simply drawn. `bar: false` when the bar was just drawn with the stretch on it.
+  function showPreview(days, { glide = false, bar = true } = {}) {
+    if (!isActive(current)) return;
     const view = describe(current);
     const option = DURATIONS.find(d => d.days === days) || DURATIONS[0];
-    renderBar(view, false, days);
-    setText('daysTo', String(view.daysLeft + days));
-    $('daysTo').hidden = false;
-    const would = $('would');
-    would.innerHTML = html`With ${option.name.toLowerCase()} on top, about <b>${formatDate(new Date(view.end.getTime() + days * DAY_MS))}</b>. A preview, not a transaction.`;
-    would.hidden = false;
+    const until = new Date(view.end.getTime() + days * DAY_MS);
+    const opening = $('daysTo').hidden, changed = days !== previewDays;
+    const draw = () => {
+      if (bar) renderBar(view, false, days, glide ? 'preview' : null);
+      $('endCap').innerHTML += html` <span class="to"><span aria-hidden="true">→ ~</span><span class="sr">, with it about </span>${formatDate(until)}</span>`;
+      $('daysToNum').textContent = view.daysLeft + days;
+      $('would').innerHTML = html`With ${option.name.toLowerCase()} on top, about <b>${formatDate(until)}</b>. A preview, not a transaction.`;
+      $('daysTo').hidden = $('would').hidden = $('previewPill').hidden = false;
+    };
+    previewDays = days;
+    if (!glide) return draw();
+    easeAside(draw);
+    const date = $('endCap').querySelector('.to');
+    if (opening) {
+      fadeIn($('previewPill'), 'scale(.96)');
+      fadeIn($('daysTo'), 'translateX(-6px)');
+      fadeIn($('would'), 'translateY(-3px)');
+      fadeIn(date, 'translateX(-4px)');
+    } else if (changed) {
+      for (const el of [$('daysToNum'), $('would'), date]) sharpenSoftly(el);
+    }
   }
 
-  function clearPreview() {
-    if (!RECORD) return;
-    $('daysTo').hidden = true;
-    $('would').hidden = true;
-    if (isActive(current)) renderBar(describe(current), false);
+  function clearPreview(glide = false) {
+    const undraw = () => {
+      $('daysTo').hidden = $('would').hidden = $('previewPill').hidden = true;
+      if (previewDays && isActive(current)) renderBar(describe(current), false, 0, glide ? 'preview' : null);
+    };
+    if (glide) {
+      for (const el of [$('previewPill'), $('daysTo'), $('would'), $('endCap').querySelector('.to')]) fadeAway(el);
+      easeAside(undraw);
+    } else {
+      undraw();
+    }
+    previewDays = 0;
   }
 
-  // Add time and Take it: off when there is nothing to add to, and while a top up is being handed off or on its way.
+  // Adding time: off when there is nothing to add to.
   function renderActions() {
-    const busy = Boolean(pending) || handingOff;
-    setDisabled('addBtn', !isActive(current) || busy);
-    setDisabled('addingBtn', !isActive(current));
-    setText('addSub', current && current.status === 'expired' ? 'the stamp has run out' : 'Extend with any wallet');
-    for (const button of document.querySelectorAll('.slot-btn')) button.disabled = busy;
+    setDisabled('addBtn', !isActive(current));
   }
 
   // The live block in the header and the footer, and how long ago the balance was read. Counted from the wall
@@ -656,8 +660,8 @@
     $('hdrBlock').textContent = $('footBlock').textContent = '…';
     $('startCap').textContent = 'Created';
     $('endCap').textContent = '';
-    $('months').style.setProperty('--n', 3);
     $('months').innerHTML = '<i class="month"></i>'.repeat(3);
+    $('months').reach = null;
     $('rank').innerHTML = '<li><span class="pos"></span><span class="who">Reading the history…</span><span class="amt"></span></li>';
     setDisabled('addBtn', true);
   }
@@ -703,24 +707,26 @@
   }
 
 
-  // ---------- 6. Motion: new time arriving
-  // Rendering never animates by itself. For an update, showStamp() measures the old layout, renders the new one,
-  // and playArrival() moves everything from where it was to where it is now.
+  // ---------- 6. Motion: new time arriving, and the preview moving in and out
+  // Rendering never animates by itself, except the bar, whose months glide when renderBar() is given a pace. For an
+  // update, showStamp() measures the old layout, renders the new one, and playArrival() moves the rest from where it
+  // was to where it is now.
 
   function measureLayout() {
     const rect = el => el.getBoundingClientRect();
     return {
-      months: [...$('months').children].map(month => { const r = rect(month); return { left: r.left, width: r.width }; }),
       rows: new Map([...$('rank').children].map(li => [li.dataset.key, rect(li).top])),
       listHeight: rect($('rank')).height,
       days: parseInt($('days').textContent, 10) || 0
     };
   }
 
-  // First sight: the months add up one by one.
+  // First sight: the months fill in from the left, one after another, within half a second whatever their number.
   function playEnter(fills) {
-    const { duration, stagger } = MOTION.enter;
-    fills.forEach((fill, i) => fill.animate(GROW, { duration, easing: EASE_OUT, delay: i * stagger, fill: 'backwards' }));
+    const { duration, stagger, spread } = MOTION.enter;
+    const step = Math.min(stagger, spread / fills.length);
+    fills.forEach((fill, i) => fill.animate([{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0)' }],
+      { duration, easing: EASE_OUT, delay: i * step, fill: 'backwards' }));
   }
 
   function playArrival(before, view) {
@@ -737,7 +743,6 @@
       el.animate([{ filter: 'blur(4px)', opacity: .35 }, { filter: 'blur(0)', opacity: 1 }],
         { duration: MOTION.sharpen.duration, easing: EASE_OUT });
     }
-    playMonths(before);
     playRows(before, rows, isNew);
   }
 
@@ -755,25 +760,65 @@
     setTimeout(() => { if (run === countRun) el.textContent = to; }, duration + 80);
   }
 
-  // The months already on the bar glide narrower to make room, then the new months settle in at the end.
-  // When the new time fits inside the last month, that block refreshes in place.
-  function playMonths(before) {
-    const bar = $('months'), months = [...bar.children], oldCount = before.months.length;
-    const grew = months.length > oldCount;
-    if (grew) {
-      months.slice(0, oldCount).forEach((month, i) => {
-        const now = month.getBoundingClientRect(), was = before.months[i];
-        const from = 'translateX(' + (was.left - now.left) + 'px) scaleX(' + (was.width / now.width) + ')';
-        month.animate([{ transformOrigin: 'left center', transform: from }, { transformOrigin: 'left center', transform: 'none' }],
-          { duration: MOTION.glide.duration, easing: EASE_IN_OUT });
-      });
-    }
-    const fresh = months.slice(grew ? oldCount : months.length - 1);
-    const { duration, delay, stagger, todayAfter } = MOTION.settle;
-    fresh.forEach((month, i) => month.animate(GROW, { duration, easing: EASE_OUT, delay: delay + i * stagger, fill: 'backwards' }));
-    // the Today line steps aside while the months move, and comes back once they have settled
-    bar.classList.add('morphing');
-    later('morphing', () => bar.classList.remove('morphing'), delay + fresh.length * stagger + todayAfter);
+  // What a change in the meter pushes aside slides there from where it was, instead of jumping: the number, the
+  // sentences, the bar and its caption, Add time, and "days left" beside the number. Translation only, so nothing
+  // stretches. Pieces that appear or go are left out; they fade on their own.
+  function easeAside(change) {
+    if (prefersReducedMotion()) return change();
+    const meter = document.querySelector('.meter'), label = $('daysLabel'), num = label.parentNode;
+    const parts = [...meter.children].filter(el => !el.hidden && el.matches('.num, .until, .months, .months-caption, .adder') && !('ghost' in el.dataset));
+    const at = el => el.getBoundingClientRect();
+    const was = parts.map(at), labelWas = offsetIn(label, num);
+    change();
+    parts.forEach((el, i) => { if (!el.hidden) slide(el, was[i].left - at(el).left, was[i].top - at(el).top); });
+    const labelNow = offsetIn(label, num);
+    slide(label, labelWas.x - labelNow.x, labelWas.y - labelNow.y);
+  }
+
+  function offsetIn(el, box) {
+    const a = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+    return { x: a.left - b.left, y: a.top - b.top };
+  }
+
+  function slide(el, dx, dy) {
+    if (Math.abs(dx) < .5 && Math.abs(dy) < .5) return;
+    el.animate([{ transform: 'translate(' + dx + 'px, ' + dy + 'px)' }, { transform: 'none' }],
+      { duration: MOTION.preview.duration, easing: EASE_OUT });
+  }
+
+  // A piece the preview adds comes in from a few px off and slightly soft. With reduced motion it only fades.
+  function fadeIn(el, from) {
+    if (!el) return;
+    el.animate(prefersReducedMotion()
+      ? [{ opacity: 0 }, { opacity: 1 }]
+      : [{ opacity: 0, transform: from, filter: 'blur(2px)' }, { opacity: 1, transform: 'none', filter: 'blur(0)' }],
+      { duration: MOTION.preview.enter, easing: EASE_OUT });
+  }
+
+  // A piece the preview removes fades out where it was, as a copy laid over its place, while what moves in slides
+  // under it. The copy sits in the same positioned box, so it keeps its looks and moves with that box.
+  function fadeAway(el) {
+    if (!el || el.hidden || !el.offsetParent || prefersReducedMotion()) return;
+    const box = el.offsetParent, a = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+    const ghost = el.cloneNode(true);
+    for (const node of [ghost, ...ghost.querySelectorAll('[id]')]) node.removeAttribute('id');
+    ghost.removeAttribute('aria-live');
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.dataset.ghost = '';
+    Object.assign(ghost.style, {
+      position: 'absolute', left: a.left - b.left - box.clientLeft + 'px', top: a.top - b.top - box.clientTop + 'px',
+      width: a.width + 'px', margin: '0', pointerEvents: 'none'
+    });
+    box.append(ghost);
+    ghost.animate([{ opacity: 1 }, { opacity: 0, filter: 'blur(2px)' }],
+      { duration: MOTION.preview.exit, easing: EASE_OUT, fill: 'forwards' }).finished.then(() => ghost.remove(), () => ghost.remove());
+  }
+
+  // A value that changes in place sharpens into the new one.
+  function sharpenSoftly(el) {
+    if (!el || prefersReducedMotion()) return;
+    el.animate([{ opacity: .5, filter: 'blur(1.5px)' }, { opacity: 1, filter: 'blur(0)' }],
+      { duration: MOTION.preview.swap, easing: EASE_OUT });
   }
 
   // The list grows by a row, the others slide to their new place, and each new keeper rises into its gap.
@@ -815,27 +860,62 @@
   }
 
 
-  // ---------- 7. Add time: the sheet, the hand off to Beeport, waiting for the chain
+  // ---------- 7. Add time: the preview under the bar
 
-  // The sheet is modal: the page behind it is inert while it is open, and focus goes back where it came from.
-  function openSheet(trigger) {
-    if (!isActive(current) || pending || handingOff) return;
-    opener = trigger;
-    setSheetOpen(true);
-    showPreview(chosenDays);
-    checkedOption().focus();
+  // Add time opens in the meter card, under the bar it changes: nothing covers the page, and each pick is drawn on
+  // the bar as it is made. A preview only: nothing is paid or sent from here. Its tile toggles it; focus goes to the
+  // chosen stretch, and back where it came from.
+  const isAdderOpen = () => $('adder').hasAttribute('data-open');
+
+  function toggleAdder(trigger) {
+    if (isAdderOpen()) closeAdder(); else openAdder(trigger);
   }
 
-  function closeSheet() {
-    setSheetOpen(false);
-    clearPreview();
-    if (opener && opener.isConnected && !opener.disabled) opener.focus();
+  function openAdder(trigger) {
+    if (!isActive(current)) return;
+    opener = trigger;
+    setAdderOpen(true);   // it unfolds by itself (stamp.css)
+    showPreview(chosenDays, { glide: true });
+    // opened from further down, as on a phone: the bar comes back into view, since that is where the pick shows
+    if (!inView($('months'))) {
+      document.querySelector('.meter').scrollIntoView({ block: 'start', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+    }
+    checkedOption().focus({ preventScroll: true });
+  }
+
+  // Focus inside goes back to what opened it when that is in view, otherwise to the heading, so closing never
+  // scrolls the page away from the bar.
+  function closeAdder() {
+    const hadFocus = $('adder').contains(document.activeElement);
+    setAdderOpen(false);
+    clearPreview(true);
+    if (hadFocus) {
+      const back = opener && opener.isConnected && !opener.disabled && inView(opener) ? opener : document.querySelector('.meter h1');
+      back.focus({ preventScroll: true });
+    }
     opener = null;
   }
 
-  function setSheetOpen(open) {
-    $('sheet').hidden = $('scrim').hidden = !open;
-    for (const el of document.querySelectorAll('#devbar, .hdr, main, footer')) el.inert = open;
+  // Closed at once, with no glide and no focus to give back: the stamp ran out, or another state took the page.
+  function hideAdder() {
+    if (!isAdderOpen()) return;
+    setAdderOpen(false);
+    $('daysTo').hidden = $('would').hidden = $('previewPill').hidden = true;
+    previewDays = 0;
+    opener = null;
+  }
+
+  // Closed, Add time is inert, so nothing in it can be reached while it folds away.
+  function setAdderOpen(open) {
+    $('adder').toggleAttribute('data-open', open);
+    $('adder').inert = !open;
+    $('addBtn').setAttribute('aria-expanded', open);
+  }
+
+  // In view below the sticky header and above the bottom edge.
+  function inView(el) {
+    const r = el.getBoundingClientRect();
+    return r.top >= document.querySelector('.hdr').getBoundingClientRect().bottom && r.bottom <= window.innerHeight;
   }
 
   const checkedOption = () => $('opts').querySelector('[aria-checked="true"]');
@@ -847,7 +927,8 @@
       each.setAttribute('aria-checked', on);
       each.tabIndex = on ? 0 : -1;
     }
-    showPreview(chosenDays);
+    $('opts').style.setProperty('--pick', DURATIONS.findIndex(d => d.days === chosenDays));   // the thumb slides there
+    if (previewDays !== chosenDays) showPreview(chosenDays, { glide: true });   // pointing at it may have drawn it already
   }
 
   // Arrow keys move the choice, as in any radio group.
@@ -861,117 +942,34 @@
     next.focus();
   }
 
-  // Continue to Beeport: check the stamp once more, then hand off. The tab is opened inside the click, so popup
-  // blockers allow it, and pointed at Beeport once the check is done. Without a tab, Beeport opens in this one.
-  async function continueToBeeport() {
-    closeSheet();
-    const tab = DEMO ? null : window.open('about:blank', '_blank');
-    handingOff = true;
-    renderActions();
-    const stamp = await checkAgain(current);
-    handingOff = false;
-    if (!isActive(stamp)) {
-      if (tab) tab.close();
-      showStamp(stamp);
-      return toast(stamp.status === 'expired' ? 'This stamp has run out. Time can no longer be added to it.' : 'This stamp could not be found.');
-    }
-    // txs: every contribution there before paying, so the visitor's own can be told apart when it lands
-    const handoff = { id: stamp.batchId, at: Date.now(), txs: txsOf(stamp) };
-    session.set(KEYS.handoff, handoff);
-    const url = BEEPORT.replace('{id}', stamp.batchId).replace('{days}', chosenDays);
-    if (tab) {
-      tab.opener = null;
-      tab.location.href = url;
-    } else if (!DEMO) {
-      location.href = url;
-      return;
-    }
-    waitForTopUp(handoff);
-    $('waiting').focus({ preventScroll: true });   // somewhere sensible for keyboard focus while the buttons are off
-  }
-
-  // The stamp once more, just before paying. Without an answer, hand off with the last read: the chain itself
-  // refuses a top up on a batch that ran out.
-  async function checkAgain(stamp) {
-    if (DEMO) return stamp;
-    try { return await fetchStamp(stamp.batchId, null, PREFLIGHT_TIMEOUT_MS); } catch (e) { return stamp; }
-  }
-
-  // The waiting note, with Add time off, from the hand off until the top up is seen or given up on. Keyboard focus
-  // parked on the note moves to the heading when the note goes.
-  function setPending(handoff) {
-    const hadFocus = document.activeElement === $('waiting');
-    pending = handoff;
-    $('waiting').hidden = !handoff;
-    if (!handoff) stop('wait');
-    renderActions();
-    if (!handoff && hadFocus) document.querySelector('.meter h1').focus({ preventScroll: true });
-  }
-
-  // The top up landed: this tab remembers it as the visitor's and forgets the hand off.
-  function claimTopUp(handoff, yours) {
-    session.set(KEYS.you, { id: handoff.id, tx: yours.tx });
-    session.remove(KEYS.handoff);
-  }
-
-  // Polls for the visitor's top up. When it lands, it plays once the visitor is looking, with You on their row.
-  function waitForTopUp(handoff) {
-    setPending(handoff);
-    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
-    const interval = DEMO ? DEMO_POLL_MS : POLL_MS;
-    const tick = async () => {
-      let stamp = null;
-      try { stamp = await fetchStamp(handoff.id, DEMO ? 'topped' : null); } catch (e) { /* try again on the next tick */ }
-      if (pending !== handoff) return;   // cancelled while the request was out
-      const yours = stamp && landedTopUp(stamp, handoff);
-      if (yours) {
-        claimTopUp(handoff, yours);
-        return whenVisible(() => {
-          if (pending !== handoff) return;
-          setPending(null);
-          showStamp(stamp, { animate: 'update' });
-          toast(addedNote(yours.days, stamp));
-        });
-      }
-      const timedOut = Date.now() - handoff.at > WAIT_MAX_MS;
-      // still away, perhaps paying across chains: look once more when the visitor is back, then give up
-      if (timedOut && document.hidden && !DEMO) return whenVisible(() => { if (pending === handoff) tick(); });
-      // the demo has one top up to show; for real, give up after ten minutes
-      if (DEMO || timedOut) {
-        session.remove(KEYS.handoff);
-        setPending(null);
-        return toast('Not seen on chain yet. Check Batch Explorer in a minute.');
-      }
-      later('wait', tick, interval);
-    };
-    later('wait', tick, interval);
-  }
-
-  // Runs fn now, or when the visitor comes back to this tab: news should not play to an empty room.
-  function whenVisible(fn) {
-    if (!document.hidden) return fn();
-    document.addEventListener('visibilitychange', function onShow() {
-      if (document.hidden) return;
-      document.removeEventListener('visibilitychange', onShow);
-      fn();
-    });
-  }
-
 
   // ---------- 8. Feedback: toast, announcements, copy
 
   // A short note at the bottom of the screen. Screen readers hear `say`, which is the note itself by default.
+  // It rises in a few px and fades out a little faster; a new note while one is leaving takes its place at once.
+  let toastLeaving = null;
   function toast(message, { ms = TOAST_MS, say = message } = {}) {
     const el = $('toast');
+    if (toastLeaving) toastLeaving.cancel();
     el.textContent = message;
-    el.hidden = false;
+    if (el.hidden) {
+      el.hidden = false;
+      if (!prefersReducedMotion()) {
+        el.animate([{ opacity: 0, transform: 'translate(-50%, 8px)' }, { opacity: 1, transform: 'translate(-50%, 0)' }],
+          { duration: MOTION.toast.enter, easing: EASE_OUT });
+      }
+    }
     announce(say);
-    later('toast', () => { el.hidden = true; }, ms);
+    later('toast', () => {
+      if (prefersReducedMotion()) { el.hidden = true; return; }
+      toastLeaving = el.animate([{ opacity: 1 }, { opacity: 0, transform: 'translate(-50%, 4px)' }],
+        { duration: MOTION.toast.exit, easing: EASE_OUT, fill: 'forwards' });
+      toastLeaving.finished.then(() => { el.hidden = true; toastLeaving.cancel(); toastLeaving = null; }, () => {});
+    }, ms);
   }
 
   // What the note says when time arrives.
   const addedNote = (days, stamp) => 'Added ' + formatDays(days) + '. Paid until about ' + formatDate(new Date(stamp.expiry.time)) + '.';
-  const landedNote = days => 'Your top up landed: ' + formatDays(days) + ' added.';
   const sinceNote = days => 'Since you last looked, ' + formatDays(days) + (Math.round(days) > 1 ? ' were' : ' was') + ' added.';
 
   // One polite live region for everything the page says out loud. Emptied first, so a repeat is read again.
@@ -1015,11 +1013,8 @@
       return;
     }
     if (run !== generation) return;   // a newer read took over while this one was out
-    if (pending) setPending(null);    // the hand off lives in sessionStorage: the wait is rebuilt below if still needed
     try {
-      const { landed, onTheWay } = settleHandoff(stamp);
-      showWithChanges(stamp, demo, landed);
-      if (onTheWay) waitForTopUp(onTheWay);
+      showWithChanges(stamp);
       if (!demo && stamp.status !== 'not_found') keepFresh(stamp.batchId);
     } catch (e) {
       // checked() let the document through, so a throw here is a bug: log it, and never leave half a page
@@ -1028,57 +1023,47 @@
     }
   }
 
-  // A top up handed off from this tab earlier. If it landed, it becomes yours before anything is drawn; if it is
-  // still on its way, the wait resumes. Returns { landed } or { onTheWay }, or neither.
-  function settleHandoff(stamp) {
-    const handoff = session.get(KEYS.handoff);
-    if (!handoff || handoff.id !== stamp.batchId || !Array.isArray(handoff.txs)) return {};
-    if (Date.now() - handoff.at > WAIT_MAX_MS || !isActive(stamp)) {
-      session.remove(KEYS.handoff);
-      return {};
-    }
-    const landed = landedTopUp(stamp, handoff);
-    if (!landed) return { onTheWay: handoff };
-    claimTopUp(handoff, landed);
-    return { landed };
-  }
-
   // Shows a stamp and plays whatever time arrived since it was last seen:
-  //   on screen already (a return from Beeport, the demo's After top up): the new time arrives in place
+  //   on screen already (the demo's After top up): the new time arrives in place
   //   seen on an earlier visit, in this browser: that version shows for a beat, then the new time arrives
   //   otherwise: the months add up on first sight
-  // `landed` is the visitor's own top up, just settled, so the note can say so.
-  function showWithChanges(stamp, demo, landed) {
+  function showWithChanges(stamp) {
     const onScreen = isActive(current) && current.batchId === stamp.batchId ? current : null;
     const remembered = onScreen ? null : rememberedVersion(stamp.batchId);
     const added = addedSince(onScreen || remembered, stamp);
     if (!added.length) return showStamp(stamp, { animate: onScreen ? null : 'enter' });
 
     const gained = daysIn(added);
-    const yours = Boolean(landed) && added.some(c => c.tx === landed.tx);
     if (onScreen) {
-      // the demo's After top up plays as if the newest top up were yours
-      const yourTx = demo === 'topped' ? added[added.length - 1].tx : yourTxFor(stamp.batchId);
-      showStamp(stamp, { animate: 'update', yourTx });
-      return toast(yours ? landedNote(gained) : addedNote(gained, stamp));
+      showStamp(stamp, { animate: 'update' });
+      return toast(addedNote(gained, stamp));
     }
     showStamp(remembered);
     const run = generation;
     later('replay', () => whenVisible(() => {
       if (run !== generation || current !== remembered) return;   // something newer is on screen by now
       showStamp(stamp, { animate: 'update' });
-      toast(yours ? landedNote(gained) : sinceNote(gained));
+      toast(sinceNote(gained));
     }), prefersReducedMotion() ? 0 : MOTION.replay);
   }
 
-  // Re reads once per price round. Skipped while a top up is on its way: the wait polls more often and plays the arrival.
+  // Runs fn now, or when the visitor comes back to this tab: news should not play to an empty room.
+  function whenVisible(fn) {
+    if (!document.hidden) return fn();
+    document.addEventListener('visibilitychange', function onShow() {
+      if (document.hidden) return;
+      document.removeEventListener('visibilitychange', onShow);
+      fn();
+    });
+  }
+
+  // Re reads once per price round. Time someone added in the meantime arrives in place.
   function keepFresh(batchId) {
     const run = generation;
     every('refresh', async () => {
-      if (pending) return;
       let fresh;
       try { fresh = await fetchStamp(batchId); } catch (e) { return; }   // keep what is on screen
-      if (run !== generation || pending) return;
+      if (run !== generation) return;
       const arrived = addedSince(current, fresh).length > 0;
       keepingFocus(() => showStamp(fresh, { animate: arrived ? 'update' : null }));
     }, PRICE_ROUND_MS);
@@ -1109,8 +1094,6 @@
   function switchDemo(button) {
     const name = button.dataset.demo;
     markPressed(name);
-    session.remove(KEYS.handoff);
-    setPending(null);
     // these leave no stamp on screen: forget it, so the next one shows the skeleton and never animates from a hidden layout
     if (name === 'loading' || name === 'error' || name === 'not_found') current = null;
     start(name);
@@ -1125,10 +1108,9 @@
 
   // Buttons say what they do with data-action; one listener runs it with the button.
   const ACTIONS = {
-    'add-time': openSheet,
-    'close-sheet': closeSheet,
+    'add-time': toggleAdder,
+    'close-adder': closeAdder,
     'choose-duration': chooseDuration,
-    'continue': continueToBeeport,
     'copy': copy,
     'retry': retry,
     'demo': switchDemo
@@ -1141,14 +1123,26 @@
   });
 
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && $('sheet') && !$('sheet').hidden) closeSheet();
+    if (e.key === 'Escape' && isAdderOpen()) closeAdder();
     else if (e.target.closest('#opts')) moveChoice(e);
   });
+
+  // Where there is a hover, pointing at a stretch draws it on the bar; leaving the options draws the chosen one again.
+  // The bar's months move by transitions, so sweeping across the options retargets them smoothly instead of restarting.
+  if (matchMedia('(hover: hover)').matches) {
+    $('opts').addEventListener('pointerover', e => {
+      const option = e.target.closest('.opt');
+      if (option && Number(option.dataset.days) !== previewDays) showPreview(Number(option.dataset.days), { glide: true });
+    });
+    $('opts').addEventListener('pointerleave', () => {
+      if (isAdderOpen() && previewDays !== chosenDays) showPreview(chosenDays, { glide: true });
+    });
+  }
 
   // The live block catches up as soon as the tab is looked at again.
   document.addEventListener('visibilitychange', () => { if (!document.hidden && paintBlockClock) paintBlockClock(); });
 
-  // Back from Beeport in the same tab, the page may come from the back/forward cache: read the stamp again.
+  // Back to the page in the same tab, it may come from the back/forward cache: read the stamp again.
   // The demo's documents never change, so a demo page comes back as it was left.
   window.addEventListener('pageshow', e => { if (e.persisted && !DEMO) start(); });
 

@@ -2,8 +2,8 @@
   Stamptime. Batch Explorer's look: Roboto, slate greys, indigo as the one colour, white cards with a hairline and
   a soft shadow, mono for anything read from the chain.
 
-  Sections follow the page: tokens, base, shared pieces, header, notice, meter, keepers, tiles, details, footer,
-  Add time sheet, toast, states, demo bar, desktop, motion and contrast preferences.
+  Sections follow the page: tokens, base, shared pieces, header, notice, meter, Add time, keepers, tiles, details,
+  footer, toast, states, demo bar, desktop, motion and contrast preferences.
 */
 
 /* ---------- tokens */
@@ -13,19 +13,24 @@
   --bg:#F6F7F9; --card:#FFFFFF; --ink:#020817; --muted:#5B6878; --on-dark:#FFFFFF;
   --line:#E2E8F0; --line-strong:#CBD5E1; --subtle:#F1F5F9;
   /* the one colour */
-  --primary:#5048E5; --primary-hover:#4338CA; --primary-deep:#3730A3; --primary-light:#8B85F0; --primary-soft:#EEF2FF;
+  --primary:#5048E5; --primary-deep:#3730A3; --primary-light:#8B85F0; --primary-soft:#EEF2FF;
   /* the pill and the live dot: paid, expiring soon, expired */
   --green:#15803D; --amber:#B45309; --slate:#64748B;
   /* the bar: a month still ahead, the veil over time spent, the fill once the stamp has run out */
   --month:var(--line); --month-spent:#B9B6EE; --month-expired:#CFCDEA;
+  /* a stretch that is only supposed, not paid: indigo hatching on a pale ground, the way plans are drawn */
+  --plan-ink:rgba(80,72,229,.72); --plan-ground:#F3F2FE; --plan-edge:rgba(80,72,229,.45);
+  --hatch:repeating-linear-gradient(-45deg,var(--plan-ink) 0 1.5px,transparent 1.5px 5px);
 
   --ui:"Roboto", system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --mono:SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --shadow:0 1px 3px rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.1);
   --radius-lg:12px; --radius-md:8px; --radius-sm:6px; --radius-xs:4px; --radius-pill:999px;
   --fast:.15s ease-out;
+  /* motion: a strong ease out for what answers a hand, and how long a press takes to feel */
+  --ease-out:cubic-bezier(.23,1,.32,1); --press:.16s cubic-bezier(.23,1,.32,1);
   --page:560px;   /* 1100px on desktop */
-  /* stacking: arriving keeper 1, header 2, scrim 3, sheet 4, toast 5 */
+  /* stacking: arriving keeper 1, header 2, toast 3 */
 }
 
 /* ---------- base */
@@ -38,7 +43,7 @@ a{color:inherit}
 button{font:inherit;color:inherit}
 ::selection{background:var(--primary-soft);color:var(--ink)}
 button:focus-visible,summary:focus-visible,a:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
-:is(h1,.waiting)[tabindex="-1"]:focus{outline:none}   /* the headings and the waiting note take focus only from the script */
+h1[tabindex="-1"]:focus{outline:none}   /* the headings take focus only from the script */
 [hidden]{display:none !important}
 .mono{font-family:var(--mono)}
 .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -57,21 +62,15 @@ main{max-width:var(--page);margin:0 auto;padding:16px 16px 0;display:grid;gap:12
 .chip{display:inline-block;padding:1px 6px;border:1px solid var(--line);border-radius:var(--radius-xs);vertical-align:1px;
   font-family:var(--mono);font-size:11px;font-weight:700;white-space:nowrap;text-decoration:none;color:var(--ink);background:var(--card)}
 @media (hover:hover){a.chip:hover{border-color:var(--line-strong)}}
-.usd,.bzz{display:inline-block;padding:2px 6px;border-radius:var(--radius-xs);vertical-align:1px;
+.bzz{display:inline-block;padding:2px 6px;border-radius:var(--radius-xs);vertical-align:1px;
   font-size:10px;font-weight:700;white-space:nowrap;color:var(--muted);background:var(--subtle)}
 
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 12px;
   border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--bg);color:var(--ink);
-  font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;cursor:pointer;transition:background var(--fast)}
-.btn.primary{padding:10px 16px;border-color:var(--primary);border-radius:var(--radius-md);background:var(--primary);color:var(--on-dark);font-size:14px}
+  font-size:12px;font-weight:500;white-space:nowrap;text-decoration:none;cursor:pointer;transition:background var(--fast),transform var(--press)}
 /* hover tints only where there is a hover, so a tap does not leave anything lit. Pressed comes after, to win */
-@media (hover:hover){
-  .btn:not(:disabled):hover{background:var(--subtle)}
-  .btn.primary:not(:disabled):hover{background:var(--primary-hover)}
-}
-.btn:not(:disabled):active{background:var(--line)}
-.btn.primary:not(:disabled):active{background:var(--primary-deep)}
-.btn:disabled{color:var(--slate);cursor:default;text-decoration:line-through}
+@media (hover:hover){.btn:hover{background:var(--subtle)}}
+.btn:active{background:var(--line);transform:scale(.97)}
 
 .chain-link{color:var(--primary);font-family:var(--mono);text-decoration:none}
 @media (hover:hover){.chain-link:hover{text-decoration:underline}}
@@ -100,10 +99,12 @@ main{max-width:var(--page);margin:0 auto;padding:16px 16px 0;display:grid;gap:12
 
 /* ---------- meter: the number, the sentence, the bar */
 
+.meter{position:relative;scroll-margin-top:64px}   /* Add time brings the bar back into view, clear of the sticky header */
+
 .stampid{font-size:13px;font-weight:500;color:var(--muted)}
 .stampid .mono{font-size:12px;color:var(--ink)}
 
-.num{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin:10px 0 0;
+.num{position:relative;display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin:10px 0 0;
   font-size:64px;font-weight:700;line-height:1;letter-spacing:-.025em;font-variant-numeric:tabular-nums}
 .num small{font-size:14px;font-weight:400;letter-spacing:0;color:var(--muted)}
 .until{margin-top:8px}
@@ -111,9 +112,15 @@ main{max-width:var(--page);margin:0 auto;padding:16px 16px 0;display:grid;gap:12
 
 /* the bar: one block per month, never labelled, always filling the width. Three months are three wide blocks, and
    paying for more squeezes more blocks in. Each month owns its fill, its spent veil and, when it holds today, the
-   line. The 30px above leaves room for the Today label, which sits 14px over the line's top end. */
-.months{position:relative;display:grid;grid-template-columns:repeat(var(--n,3),1fr);gap:2px;margin-top:30px}
-.month{position:relative;height:18px;border-radius:2.5px;background:var(--month)}
+   line. The 30px above leaves room for the Today label, which sits 14px over the line's top end.
+   The months share the width as flex items, so the bar moves by real widths, never by stretching: a month the bar
+   gains widens in from nothing, one it loses narrows away, and the others give or take room. stamp.js sets the pace
+   (--glide, --glide-ease) and each month's delay (--d); .still draws a render at once */
+.months{position:relative;display:flex;margin-top:30px;--glide:.3s;--glide-ease:var(--ease-out)}
+.month{position:relative;flex:1 1 0;min-width:0;height:18px;margin-left:2px;border-radius:2.5px;background:var(--month);
+  transition:flex-grow var(--glide) var(--glide-ease) var(--d,0s),margin-left var(--glide) var(--glide-ease) var(--d,0s)}
+.month:first-child{margin-left:0}
+.month.entering,.month.leaving{flex-grow:0;margin-left:0}
 .months .fill,.months .spent{position:absolute;top:0;bottom:0;left:0;display:block;border-radius:2.5px}
 .months .fill{width:100%;background:linear-gradient(180deg,var(--primary-light),var(--primary) 55%,var(--primary-deep));
   box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
@@ -123,16 +130,23 @@ main{max-width:var(--page);margin:0 auto;padding:16px 16px 0;display:grid;gap:12
 .month.now::before{content:"Today";position:absolute;bottom:calc(100% + 14px);left:var(--x);transform:translateX(-50%);
   font-size:11px;font-weight:500;color:var(--ink);white-space:nowrap}
 .month.now:first-child::before{transform:translateX(-20%)}   /* in the first month, a centred label would hang off the left edge */
-.month.now::after,.month.now::before{transition:opacity .25s ease-out}
-.months.morphing .now::after,.months.morphing .now::before{opacity:0}
-.months-caption{display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:12px;color:var(--muted);white-space:nowrap}
+.months-caption{position:relative;display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:12px;color:var(--muted);white-space:nowrap}
 
-/* waiting for the chain, after Beeport */
-.waiting{display:flex;align-items:center;gap:10px;margin-top:12px;padding:8px 12px;
-  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--bg);font-size:12px;color:var(--muted)}
-.spinner{flex:none;width:10px;height:10px;border-radius:50%;border:1.5px solid var(--primary);border-top-color:transparent;
-  animation:spin 1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+/* the preview, while Add time is open: the stretch it would add hatched on the bar from the paid end, the number
+   it would reach underlined with the same hatching, the date it would reach, and a Preview pill whose swatch is
+   the legend. Everything supposed is hatched; everything paid stays solid */
+.plan-fill{background:var(--hatch),var(--plan-ground);box-shadow:inset 0 0 0 1px var(--plan-edge)}
+.months .plan{position:absolute;top:0;bottom:0;left:var(--a);width:var(--w);display:block;border-radius:2.5px;
+  transition:width var(--glide) var(--glide-ease) var(--d,0s)}
+.months.still :is(.month,.plan){transition:none}
+.pills{position:relative;display:inline-flex;align-items:center;gap:6px}
+.pills .pill.preview{gap:6px;padding:1px 9px 1px 6px;border:1px dashed var(--primary);background:var(--card);color:var(--primary)}
+.swatch{display:inline-block;width:10px;height:10px;border-radius:2px}
+.num .to{font-size:.5em;font-weight:700;letter-spacing:-.02em;color:var(--primary)}
+.num .to::before{content:"→ ";font-weight:400;color:var(--muted)}
+.num .to .v{display:inline-block;padding-bottom:7px;background:var(--hatch) left bottom/100% 5px no-repeat}
+.until.would{margin-top:2px;color:var(--primary)}
+.months-caption .to{font-weight:500;color:var(--primary)}
 
 /* ---------- keepers: the names, ranked */
 
@@ -145,8 +159,7 @@ main{max-width:var(--page);margin:0 auto;padding:16px 16px 0;display:grid;gap:12
 .rank .who small{display:block;margin-top:1px;font-size:12px;color:var(--muted)}
 .rank .who small .chain-link{font-size:11px}
 .rank .amt{text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
-.rank .amt .usd,.rank .amt .bzz{margin-left:6px}
-.rank li.you .who > span:first-child{font-weight:600}
+.rank .amt .bzz{margin-left:6px}
 .rank li.slot{color:var(--muted)}
 .rank li.slot .pos{color:var(--slate)}
 
@@ -163,12 +176,18 @@ main{max-width:var(--page);margin:0 auto;padding:16px 16px 0;display:grid;gap:12
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid a,.grid button{display:block;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);
   background:var(--bg);color:var(--ink);font-size:13px;font-weight:500;text-align:left;text-decoration:none;cursor:pointer;
-  transition:background var(--fast),border-color var(--fast)}
+  transition:background var(--fast),border-color var(--fast),transform var(--press)}
 @media (hover:hover){.grid a:hover,.grid button:enabled:hover{background:var(--subtle);border-color:var(--line-strong)}}
-.grid a:active,.grid button:enabled:active{background:var(--line)}
+.grid a:active,.grid button:enabled:active{background:var(--line);transform:scale(.98)}
 .grid small{display:block;margin-top:2px;font-size:11px;font-weight:400;color:var(--muted)}
 .grid button:disabled{color:var(--slate);cursor:default}
 .grid button:disabled > span{text-decoration:line-through}   /* the action, not the reason under it */
+/* Add time's tile while Add time is open: lit like a chosen option, and its line points at the bar, above on a
+   phone and to the left on desktop */
+.grid .add-tile[aria-expanded="true"]{border-color:var(--primary);background:var(--primary-soft)}
+.add-tile .where,.add-tile .on-wide{display:none}
+.add-tile[aria-expanded="true"] small > span:first-child{display:none}
+.add-tile[aria-expanded="true"] .where{display:inline;color:var(--primary)}
 
 /* ---------- details: Batch Explorer's rows, then the disclosures */
 
@@ -207,40 +226,55 @@ footer{max-width:var(--page);margin:20px auto 0;padding:14px 16px 0;border-top:1
   display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;font-size:11px;line-height:1.8;color:var(--muted)}
 footer a{text-decoration:none}
 @media (hover:hover){footer a:hover{color:var(--ink)}}
+footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--muted)}
 
-/* ---------- Add time sheet: a bottom sheet on phones, a centred dialog on desktop */
+/* ---------- Add time: under the bar, in the meter card. The three stretches side by side as one segmented choice
 
-.scrim{position:fixed;inset:0;z-index:3;background:rgba(2,8,23,.4)}
-.sheet{position:fixed;left:0;right:0;bottom:0;z-index:4;max-height:100vh;max-height:100dvh;overflow-y:auto;overscroll-behavior:contain;
-  padding:18px max(16px,env(safe-area-inset-right,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
-  border-radius:var(--radius-lg) var(--radius-lg) 0 0;background:var(--card);box-shadow:0 -8px 30px rgba(2,8,23,.18)}
-.sheet-inner{max-width:528px;margin:0 auto}
-.sheet h2{margin:0 0 4px;font-size:18px;font-weight:600}
-.sheet p{margin:0 0 12px;font-size:13px;color:var(--muted)}
+   It unfolds to its own height (a grid row from 0fr to 1fr) and folds away a little faster, its content fading in as
+   it settles from a few px up. Closed it is inert and, once folded, hidden. The body's 6px of padding, cancelled by
+   its margin, gives focus rings room inside the clip. */
+.adder{display:grid;grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows .22s var(--ease-out),visibility 0s .22s}
+.adder[data-open]{grid-template-rows:1fr;visibility:visible;transition:grid-template-rows .3s var(--ease-out),visibility 0s}
+.adder-body{min-height:0;overflow:hidden;margin:-6px;padding:6px;opacity:0;transform:translateY(-6px);
+  transition:opacity .12s ease-out,transform .22s var(--ease-out)}
+.adder[data-open] .adder-body{opacity:1;transform:none;transition:opacity .24s ease-out .04s,transform .3s var(--ease-out)}
+.adder-inner{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.adder-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.card .adder h2{font-size:14px}
+.adder p{margin:4px 0 0;font-size:13px;color:var(--muted)}
+.adder-close{padding:4px 2px;border:0;background:none;color:var(--muted);font-size:13px;cursor:pointer}
+@media (hover:hover){.adder-close:hover{color:var(--ink)}}
 
-.opts{display:grid;gap:8px}
-.opt{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:10px 12px;
-  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--bg);text-align:left;cursor:pointer;
-  transition:background var(--fast),border-color var(--fast)}
-.opt[aria-checked="true"]{border-color:var(--primary);background:var(--primary-soft)}
-.opt b{display:block;font-size:14px;font-weight:600}
-.opt small{font-size:12px;color:var(--muted)}
-.opt .price{text-align:right;white-space:nowrap;font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
-.opt .price b{font-size:13px}
-.opt .price small{display:block;margin-top:1px;font-family:var(--ui)}
+/* the choice is marked by one thumb that slides to the stretch picked (--pick: 0, 1 or 2), rather than a frame
+   that jumps from cell to cell */
+.opts{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:10px;padding:4px;
+  border:1px solid var(--line);border-radius:var(--radius-md);background:var(--bg)}
+.opts::before{content:"";position:absolute;top:4px;bottom:4px;left:4px;width:calc((100% - 16px) / 3);
+  border-radius:var(--radius-sm);background:var(--card);box-shadow:0 0 0 1px var(--primary),var(--shadow);
+  transform:translateX(calc(var(--pick,1) * (100% + 4px)));transition:transform .26s var(--ease-out)}
+.opt{position:relative;display:grid;align-content:start;gap:2px;min-width:0;padding:7px 9px;border:1px solid transparent;
+  border-radius:var(--radius-sm);background:transparent;text-align:left;cursor:pointer;
+  transition:background var(--fast),transform var(--press)}
+.opt b{font-size:13px;font-weight:600;transition:color .2s ease}
+.opt .est{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.opt small{font-size:11px;color:var(--muted);white-space:nowrap}
+@media (hover:hover){.opt:not([aria-checked="true"]):hover{background:var(--subtle)}}
+.opt:active{transform:scale(.97)}
+.opt[aria-checked="true"] b{color:var(--primary-deep)}
+.opt:focus-visible{outline-offset:3px}
 
-.sheet .note{margin:12px 0 0;font-size:12px}
-.sheet .note button{padding:0;border:0;background:transparent;color:var(--primary);text-decoration:underline;cursor:pointer}
-.sheet .go{width:100%;margin-top:14px}
-.sheet .cancel{width:100%;margin-top:6px;padding:8px;border:0;background:transparent;color:var(--muted);font-size:13px;cursor:pointer}
+.adder .note{margin:10px 0 0;font-size:12px;line-height:1.5}
+.adder .note button{padding:0;border:0;background:transparent;color:var(--primary);text-decoration:underline;cursor:pointer}
+.adder .rule{padding:8px 10px;border-radius:var(--radius-sm);background:var(--subtle)}
+.adder .rule b{color:var(--ink)}
+.adder .links a{margin-right:14px;color:var(--primary);text-decoration:none}
+@media (hover:hover){.adder .links a:hover{text-decoration:underline}}
 
 /* ---------- toast */
 
-.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:5;transform:translateX(-50%);
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:3;transform:translateX(-50%);
   max-width:min(400px,calc(100vw - 32px));padding:9px 14px;border-radius:var(--radius-md);background:var(--ink);color:var(--on-dark);
   font-size:13px;text-align:center;overflow-wrap:anywhere}
-/* while the sheet is open, notes show at the top, so they never cover its buttons */
-.sheet:not([hidden]) ~ .toast{top:calc(16px + env(safe-area-inset-top,0px));bottom:auto}
 
 /* ---------- states, one class on <body>: loading, paid, soon, expired, missing, error */
 
@@ -266,7 +300,7 @@ footer a{text-decoration:none}
 .devbar button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--on-dark)}
 
 /* ---------- desktop: same reading order, two columns. The fact and its details on the left, the people and the
-   actions on the right. The sheet becomes a centred dialog */
+   actions on the right */
 
 @media (min-width:900px){
   :root{--page:1100px}
@@ -276,10 +310,8 @@ footer a{text-decoration:none}
   .side{grid-area:side;display:flex;flex-direction:column;gap:12px}
   .card{padding:20px}
   .num{font-size:72px}
-  .sheet{left:50%;right:auto;top:50%;bottom:auto;transform:translate(-50%,-50%);width:min(540px,calc(100vw - 32px));
-    max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);padding:22px 22px 20px;border-radius:var(--radius-lg);
-    box-shadow:0 20px 60px rgba(2,8,23,.25)}
-  .sheet-inner{max-width:none}
+  .add-tile .on-wide{display:inline}
+  .add-tile .on-narrow{display:none}
   :is(.state-missing,.state-error) main{grid-template-columns:1fr;grid-template-areas:none}
   .notice{max-width:640px}
 }
@@ -287,36 +319,21 @@ footer a{text-decoration:none}
 /* ---------- motion and contrast preferences */
 
 @media (prefers-reduced-motion:reduce){
-  .spinner{animation:none}
   summary::after{transition:none}
+  .month,.months .plan,.opts::before{transition:none}
+  .adder,.adder[data-open]{transition:visibility 0s}
+  .adder-body,.adder[data-open] .adder-body{transform:none;transition:opacity .15s ease-out}
+  .btn:active,.grid a:active,.grid button:enabled:active,.opt:active{transform:none}
 }
 
 /* with forced colours the tints are gone: a thicker border marks the choice, leaving the outline to focus. The bar
-   and the spinner keep their own colours, like an image would */
+   and the Preview swatch keep their own colours, like an image would */
 @media (forced-colors:active){
-  .opt[aria-checked="true"]{border:2px solid Highlight;padding:9px 11px}
+  .opt[aria-checked="true"]{border:2px solid Highlight;padding:6px 8px}
+  .opts::before{display:none}
+  .swatch,.num .to .v{forced-color-adjust:none}
   .devbar button[aria-pressed="true"]{border:2px solid Highlight;padding:2px 9px}
-  .months,.spinner{forced-color-adjust:none}
+  .months{forced-color-adjust:none}
   .month.now::before{color:CanvasText}
   .month.now::after{background:CanvasText}
 }
-
-/* ---------- record mode: until the date in <meta name="stamptime-topups-from">, the page shows the record only */
-html.mode-record .full-only{display:none !important}
-html.mode-full .record-only{display:none !important}
-footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--muted)}
-
-/* the record's preview: dashed months beyond the paid end, the number it would reach, the date it would reach */
-.month.ghost{background:transparent;border:1.5px dashed var(--primary);opacity:.55}
-.month.ghost .fill{background:var(--primary);opacity:.18}
-.num .to{font-size:.5em;color:var(--primary);font-weight:700;letter-spacing:-.02em}
-.num .to::before{content:"→ ";color:var(--muted);font-weight:400}
-.until.would{color:var(--primary);margin-top:2px}
-.sheet .rule{padding:8px 10px;border-radius:var(--radius-sm);background:var(--subtle)}
-.sheet .rule b,.sheet .links a{color:var(--ink)}
-.sheet .links a{color:var(--primary);text-decoration:none;margin-right:14px}
-/* record mode: Adding time, See every event, Read the contract, How postage works */
-html.mode-record #addingBtn{order:1}
-html.mode-record #eventsLink{order:2}
-html.mode-record #contractLink{order:3}
-html.mode-record #docsLink{order:4}
