@@ -220,6 +220,7 @@ dd .copy + .copy{margin-left:4px}   /* room between the hit areas */
 .rank .amt .bzz{margin-left:6px}
 .rank li.slot{color:var(--muted)}
 .rank li.slot .pos{color:var(--slate)}
+.rank li.reading{color:var(--slate)}   /* a first look: who kept it alive is still being read */
 
 /* a new keeper arriving: a lifted card that lands, keeps a tint for a moment, then becomes a row. The negative
    margin and the padding cancel out, so nothing shifts. stamp.js times the class changes against these fades. */

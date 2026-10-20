@@ -12,7 +12,8 @@
     3. for each payment, the sender of its transaction, since BatchTopUp carries no payer, and the PriceUpdate in force
        at its block, for the days it bought; for an active stamp, the stretches of the 30 days that hold the lowest
        and the highest price
-  An expired stamp then walks the price history to find when it ran out (section 6). Plus, only when asked with
+  A page can show the stamp before step 3: readStamp() hands it a first look as soon as the balance is read (section
+  8). An expired stamp then walks the price history to find when it ran out (section 6). Plus, only when asked with
   `withUsd`, one request to CoinGecko for BZZ to USD over the last year, the source Batch Explorer uses. The page
   never asks: it shows BZZ alone.
 
@@ -431,12 +432,20 @@ function capacityOf(depth) {
 // `id`: 64 lower case hex characters, no 0x. `rpcs`: Gnosis JSON-RPC urls, tried in order until one gives the whole
 // document, starting from the one that answered last, so a node that is down costs one wait, not one per read.
 // `withUsd`: true adds dollars from CoinGecko, for a document served to others. The page leaves it off.
-export async function readStamp(id, { rpcs, withUsd = false }) {
+// For a page that shows the stamp while it is read, two optional callbacks:
+//   `onStep(name)`: 'block', then 'history', as each step of the read starts
+//   `onFirstLook(doc, txs)`: once the balance is read, before step 3, the document as far as it is known: no
+//     contributions yet, no range, and for an expired stamp no end. `txs` are the hashes of its payments, so a page
+//     can tell whether time was added since it last showed the stamp. Called again if the read moves to another RPC.
+export async function readStamp(id, { rpcs, withUsd = false, onStep = () => {}, onFirstLook = () => {} }) {
   const ordered = rpcs.includes(lastAnswered) ? [lastAnswered, ...rpcs.filter(rpc => rpc !== lastAnswered)] : rpcs;
+  // a page's callback that throws is the page's bug: it is logged, and never stops the read
+  const tell = fn => (...args) => { try { fn(...args); } catch (e) { console.error(e); } };
+  const progress = { onStep: tell(onStep), onFirstLook: tell(onFirstLook) };
   let failure = new Error('No RPC to read from');
   for (const rpc of ordered) {
     try {
-      const doc = await readFrom(rpc, id, withUsd);
+      const doc = await readFrom(rpc, id, withUsd, progress);
       lastAnswered = rpc;
       return doc;
     } catch (e) {
@@ -447,16 +456,18 @@ export async function readStamp(id, { rpcs, withUsd = false }) {
   throw failure;
 }
 
-async function readFrom(rpc, id, withUsd) {
+async function readFrom(rpc, id, withUsd, { onStep, onFirstLook }) {
   const client = clientFor(rpc);
   const dollars = withUsd ? usdSeries() : Promise.resolve(null);   // alongside the chain reads, never in their way
 
   // Step 1. Every live value is read at this one block, and its time is the page's "now".
+  onStep('block');
   const block = await blockAt(client);
   const head = block.number;
   const now = block.timestamp;
 
   // Step 2, one batch: the batch's history, what is left, and the samples of the range.
+  onStep('history');
   const [events, totalOut, price, sampled] = await Promise.all([
     batchEvents(client, id, head),
     view(client, 'currentTotalOutPayment', head),
@@ -481,6 +492,16 @@ async function readFrom(rpc, id, withUsd) {
   }
   const remaining = balance - totalOut;   // per chunk
   const active = remaining > 0n;
+  const end = p => iso(now + Number(remaining / p) * BLOCK_SECONDS);
+  const bzzPerDay = active ? Number(price) * 2 ** depth * BLOCKS_PER_DAY / PLUR_PER_BZZ : null;
+  const stamp = { id, rpc, head, now, created, depth, active, bzzPerDay };
+
+  // What is known now is most of what the page shows: the first look. Its creation time comes with its log.
+  if (created.time != null) {
+    const expiry = { time: active ? end(price) : null, earliest: null, latest: null, lastBlock: null };
+    onFirstLook(stampDocument(stamp, { createdTime: created.time, expiry, rate: null, contributions: [] }),
+      payments.map(p => p.event.tx));
+  }
 
   // Step 3, one batch: who paid and the days each payment bought, and for an active stamp where its range lies.
   const [range, paid] = await Promise.all([
@@ -494,7 +515,6 @@ async function readFrom(rpc, id, withUsd) {
 
   let expiry;
   if (active) {
-    const end = p => iso(now + Number(remaining / p) * BLOCK_SECONDS);
     expiry = { time: end(price), earliest: end(range.highest), latest: end(range.lowest), lastBlock: null };
   } else {
     if (!ranOut.has(id)) {
@@ -515,8 +535,11 @@ async function readFrom(rpc, id, withUsd) {
     const rate = rateAt(series, time * 1000);
     return { kind, address, time: iso(time), block: Number(event.block), tx: event.tx, days, usd: rate == null ? null : bzz * rate, bzz };
   });
-  const bzzPerDay = active ? Number(price) * 2 ** depth * BLOCKS_PER_DAY / PLUR_PER_BZZ : null;
-  const rate = rateNow(series);
+  return stampDocument(stamp, { createdTime: await timeOf(client, created), expiry, rate: rateNow(series), contributions });
+}
+
+// The document, from what readFrom() has read: whole at the end, or as far as it is known for the first look.
+function stampDocument({ id, rpc, head, now, created, depth, active, bzzPerDay }, { createdTime, expiry, rate, contributions }) {
   return {
     batchId: id,
     status: active ? 'active' : 'expired',
@@ -525,7 +548,7 @@ async function readFrom(rpc, id, withUsd) {
     depth,
     immutable: created.args.immutableFlag,
     capacity: capacityOf(depth),
-    created: { time: iso(await timeOf(client, created)), block: Number(created.block), tx: created.tx },
+    created: { time: iso(createdTime), block: Number(created.block), tx: created.tx },
     expiry,
     pricing: { bzzPerDay, usdPerDay: bzzPerDay == null || rate == null ? null : bzzPerDay * rate },
     contributions

@@ -121,7 +121,7 @@ The only interface the page cares about is the JSON document. `public/chain.js` 
 
 ### How the page reads the chain
 
-A first visit to an active stamp costs three requests to the RPC, about 50 KB compressed, since calls made together go out as one JSON-RPC batch: the block, then everything that only needs the block, then everything that needs the batch's history. Each re read while the page stays open costs two.
+A first visit to an active stamp costs three requests to the RPC, about 50 KB compressed, since calls made together go out as one JSON-RPC batch: the block, then everything that only needs the block, then everything that needs the batch's history. The stamp shows once the second has answered; the third fills in who kept it alive and the range. Each re read while the page stays open costs two.
 
 | What | How | Calls | Request |
 |---|---|---|---|
@@ -344,7 +344,7 @@ Send a label such as `"7.7 GB"`. Take it from the effective volume table in the 
 
 This is all in `public/stamp.js`, and it explains how often the page reads the stamp.
 
-- **On load:** one read of the stamp. While it waits, a skeleton with "Reading Gnosis…". A read that has not finished in 10 s shows the error state, with a retry.
+- **On load:** one read of the stamp. While it waits, a skeleton with the batch id from the address (to copy, or to look up on Batch Explorer) and the step the read is on. As soon as the balance is read the stamp shows: the number, the sentence, the bar and Stamp details; who kept it alive and the "give or take" fill in when the rest of the read arrives, about a round trip later. A visitor who saw the stamp before, and to whom time was added since, sees that earlier version at that moment instead, and the new time arrives on it. A read that has shown nothing after 10 s shows the error state, with a retry.
 - **While open:** it ticks the block number every 5 s locally, and reads the stamp again once per price round (760 s).
 - **Adding time:** opens under the bar, in the same card: a month, half a year and a year side by side, each priced in BZZ from `pricing.bzzPerDay` and dated from `expiry.time`. The one picked is hatched on the bar from the paid end, the bar takes in the months it needs, the number shows the days it would reach and the sentence the date, and a dashed Preview pill, whose swatch is the hatching, says what it is. Where there is a hover, pointing at a stretch draws it. Close, Escape or the tile again put the bar back. It is a preview: nothing is paid, signed or sent from the page.
 - **New time arriving:** whenever a render brings contributions that were not on screen before (on the periodic re read, or on a reload), the page plays one short sequence instead of jumping. The number counts up to the new total, the months already on the bar narrow to make room as the new months widen in at the end, one after another, and the new keeper appears on the open slot it took and rises over the list to its rank as a card, while the other rows slide down. With reduced motion it only fades the new row in.

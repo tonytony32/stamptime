@@ -137,8 +137,9 @@
   }
 
   // One stamp document. Rejects on network errors, timeouts, HTTP errors and documents the page cannot draw.
-  async function fetchStamp(id, demo, timeoutMs = FETCH_TIMEOUT_MS) {
-    if (!demo && !API) return checked(await readFromChain(id, timeoutMs), id);
+  // `progress`, read from the chain only: { onStep, onFirstLook }, passed on to chain.js.
+  async function fetchStamp(id, demo, progress = {}, timeoutMs = FETCH_TIMEOUT_MS) {
+    if (!demo && !API) return checked(await readFromChain(id, timeoutMs, progress), id);
     const url = demo ? './examples/' + demo + '.json' : API + '/stamps/' + id;
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), timeoutMs);
@@ -161,12 +162,15 @@
   // The stamp read from Gnosis by chain.js. It loads, and viem with it, only when a real stamp is asked for, so the
   // demo never touches the chain. viem is asked for at the same time as chain.js, not once chain.js asks for it, which
   // saves a round trip before the first read. It asks for no dollars, since the page shows none.
-  async function readFromChain(id, timeoutMs) {
+  // The timeout runs until the stamp's first look: from then on a slow link only delays who kept it alive and the
+  // range, the stamp is on screen, and each request to the RPC still has its own timeout.
+  async function readFromChain(id, timeoutMs, { onStep, onFirstLook } = {}) {
     let timer;
     const timeout = new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error('Gnosis did not answer in time')), timeoutMs); });
+    const firstLook = onFirstLook && ((doc, txs) => { clearTimeout(timer); onFirstLook(doc, txs); });
     try {
       const [chain] = await Promise.race([Promise.all([import('./chain.js'), import('./vendor/viem.js')]), timeout]);
-      return await Promise.race([chain.readStamp(id, { rpcs: RPCS, withUsd: false }), timeout]);
+      return await Promise.race([chain.readStamp(id, { rpcs: RPCS, withUsd: false, onStep, onFirstLook: firstLook }), timeout]);
     } finally {
       clearTimeout(timer);
     }
@@ -259,6 +263,11 @@
   let generation = 0;              // bumped by start(), so an older, slower read never overwrites a newer one
   let countRun = 0;                // bumped to stop the number counting up: countTo(), renderHeadline(), renderLoading()
   let paintBlockClock = null;      // repaints the live block: startBlockClock(), stopBlockClock()
+  let reading = null;              // the batch id being read, while no stamp is on screen: renderLoading()
+  let firstLook = null;            // the stamp on screen before who kept it alive and its range are read: showStamp()
+  let replaying = null;            // the version from an earlier visit, on screen while new time is read: showFirstLook()
+  let replayingSince = 0;          // ...since when, so it shows for MOTION.replay before the new time arrives
+  let enterEndsAt = 0;             // when the months filling in on first sight are done: playEnter()
 
   // Named timers, each kept as the function that cancels it. Starting one cancels whatever ran under that name.
   const timers = new Map();
@@ -293,31 +302,38 @@
     if (name === 'loading') number.setAttribute('aria-hidden', 'true'); else number.removeAttribute('aria-hidden');
   }
 
-  // Draws a stamp document. animate: 'enter' on first sight, 'update' when new time arrives in place.
-  function showStamp(stamp, { animate = null } = {}) {
+  // Draws a stamp document. animate: 'enter' on first sight, 'update' when new time arrives in place, 'fill' when the
+  // rest of the read joins a first look. pending: the stamp's first look (showFirstLook()), drawn before who kept it
+  // alive and its range are read: the keepers say what is being read, an expired stamp's bar waits for its end, and
+  // nothing of it is remembered.
+  function showStamp(stamp, { animate = null, pending = false } = {}) {
     // for an update, measure what is on screen before anything changes, so it can move from there
     const before = animate === 'update' && isActive(current) ? measureLayout() : null;
     current = stamp;
+    firstLook = pending ? stamp : null;
+    replaying = null;
     hideNotice();
     if (stamp.status === 'not_found') return renderMissing(stamp.batchId);
 
     const view = describe(stamp);
     setState(view.expired ? 'expired' : view.soon ? 'soon' : 'paid');
     const previewing = isAdderOpen();
-    renderHeadline(stamp, view);
-    renderBar(view, animate === 'enter', previewing ? chosenDays : 0, before ? 'arrival' : null);
-    renderKeepers(stamp, view);
+    renderHeadline(stamp, view, pending);
+    if (pending && view.expired && !view.end) renderBarWaiting(view);
+    else renderBar(view, animate === 'enter', previewing ? chosenDays : 0, before ? 'arrival' : animate === 'fill' ? 'preview' : null);
+    renderKeepers(stamp, view, pending);
     renderDetails(stamp, view);
+    if (!pending) renderQr(stamp.batchId);
     renderAdder(stamp);
     renderActions();
     startBlockClock(stamp, view);
     if (previewing) showPreview(chosenDays, { bar: false });
-    local.set(KEYS.seen(stamp.batchId), stamp);
+    if (!pending) local.set(KEYS.seen(stamp.batchId), stamp);
     if (before) playArrival(before, view);
   }
 
   // The number, the pill and the sentence: how long this is paid for, always as an estimate.
-  function renderHeadline(stamp, view) {
+  function renderHeadline(stamp, view, pending = false) {
     countRun++;   // a number still counting up from an earlier update stops here
     const shortId = abbreviate(stamp.batchId, 8, 7);
     $('stampShort').textContent = shortId;
@@ -325,17 +341,18 @@
     $('days').textContent = view.daysLeft;
     $('daysLabel').textContent = view.daysLeft === 1 ? 'day left' : 'days left';
     $('pill').textContent = view.expired ? 'Expired' : view.soon ? 'Expiring soon' : 'Paid';
-    $('until').innerHTML = untilSentence(view);
+    $('until').innerHTML = untilSentence(view, pending);
     $('caveat').textContent = view.expired
       ? 'Nobody did. What it covered is no longer kept by the network.'
       : 'Nobody is obliged to keep it paid. If nobody does, what it covers stops being kept around ' + formatDayMonth(view.end) +
         '. Anyone can add time; the owner stays the owner.';
   }
 
-  function untilSentence(view) {
+  function untilSentence(view, pending = false) {
     if (view.expired) {
-      return view.end
-        ? html`Ran out around <b>${formatDate(view.end)}</b>. Time can no longer be added to it.`
+      if (view.end) return html`Ran out around <b>${formatDate(view.end)}</b>. Time can no longer be added to it.`;
+      return pending
+        ? html`Ran out. Time can no longer be added to it. Reading the price history for when…`
         : html`Ran out. Time can no longer be added to it.`;
     }
     const range = view.giveOrTake ? ', give or take ' + plural(view.giveOrTake, 'day') : '';
@@ -436,6 +453,12 @@
       : html`<span aria-hidden="true">~</span><span class="sr">about </span>${formatDayMonth(view.end)}`;
   }
 
+  // An expired stamp's first look: the bar keeps its skeleton until the end is read, rather than guess where it is.
+  function renderBarWaiting(view) {
+    $('startCap').textContent = 'Created ' + formatDayMonth(view.created);
+    $('endCap').textContent = '';
+  }
+
   // A month the bar no longer needs narrows away, or goes at once when nothing moves.
   function narrowAway(month, pace, delay) {
     if (!pace) return month.remove();
@@ -458,8 +481,10 @@
     return 'linear-gradient(90deg, ' + [colorStop(0, 0), colorStop(a, a * 100), colorStop(b, b * 100), colorStop(1, 100)].join(', ') + ')';
   }
 
-  // The names, ranked by days given, and while the stamp is paid an open slot that states the rule.
-  function renderKeepers(stamp, view) {
+  // The names, ranked by days given, and while the stamp is paid an open slot that states the rule. On a first look,
+  // what is being read in their place.
+  function renderKeepers(stamp, view, pending = false) {
+    if (pending) return $('rank').replaceChildren(listItem('reading', 'reading', readingRow()));
     const keepers = keepersOf(stamp);
     const rows = keepers.map((keeper, i) => listItem(keeper.key, '', keeperRow(keeper, i + 1)));
     if (!view.expired) rows.push(listItem('slot', 'slot', openSlotRow(keepers.length + 1)));
@@ -499,6 +524,8 @@
       : kept + ' it alive, ' + when;
   }
 
+  const readingRow = () => html`<span class="pos"></span><span class="who">Reading who kept it alive…</span><span class="amt"></span>`;
+
   // The slot states the rule and offers nothing.
   function openSlotRow(rank) {
     return html`<span class="pos">${rank}</span>
@@ -510,7 +537,6 @@
   function renderDetails(stamp, view) {
     const ownerShort = abbreviate(stamp.owner, 6, 4);
     $('batchId').textContent = stamp.batchId;
-    renderQr(stamp.batchId);
     $('ownerLink').textContent = ownerShort;
     $('ownerLink').href = GNOSISSCAN + '/address/' + stamp.owner;
     $('capacity').textContent = stamp.capacity;
@@ -534,8 +560,8 @@
     $('badgeCode').textContent = '<script src="' + BADGE_JS + '" data-batch="' + stamp.batchId + '"></script>';
   }
 
-  // The batch id as a QR code, in the popover the QR icons open. qr.js loads the first time a stamp is drawn, after the
-  // stamp is on screen, so it never delays it, and the code is ready before anyone asks for it: 4 KB, where loading it
+  // The batch id as a QR code, in the popover the QR icons open. qr.js loads the first time a whole stamp is drawn,
+  // after its read, so it never delays it, and the code is ready before anyone asks for it: 4 KB, where loading it
   // on the first tap would leave the card empty for a round trip. The markup is numbers only; the id is never put in it.
   function renderQr(batchId) {
     if ($('qrId').textContent === batchId) return;
@@ -669,8 +695,10 @@
     paintBlockClock = null;
   }
 
-  // Loading draws a skeleton. Not found and error show the notice card in place of the meter, the keepers and the details.
-  function renderLoading() {
+  // Loading draws a skeleton, with the batch id when the address has one: which stamp it is shows at once, and it can be
+  // copied or looked up on Batch Explorer while it is read. Not found and error show the notice card in place of the
+  // meter, the keepers and the details.
+  function renderLoading(id = null) {
     setState('loading');
     hideNotice();
     stopBlockClock();
@@ -686,6 +714,14 @@
     $('months').reach = null;
     $('rank').innerHTML = '<li><span class="pos"></span><span class="who">Reading the history…</span><span class="amt"></span></li>';
     setDisabled('addBtn', true);
+    reading = id;
+    if (id) {
+      const shortId = abbreviate(id, 8, 7);
+      $('stampShort').textContent = shortId;
+      $('batchId').textContent = id;
+      $('eventsLink').href = BATCH_EXPLORER + id;
+      document.title = 'Postage stamp ' + shortId + ' · Stamptime';
+    }
   }
 
   // `id` is what the visitor asked for: a valid id that was never created, or a malformed one. Null when none.
@@ -747,6 +783,7 @@
   function playEnter(fills) {
     const { duration, stagger, spread } = MOTION.enter;
     const step = Math.min(stagger, spread / fills.length);
+    enterEndsAt = performance.now() + duration + step * Math.max(0, fills.length - 1);
     fills.forEach((fill, i) => fill.animate([{ clipPath: 'inset(0 100% 0 0)' }, { clipPath: 'inset(0)' }],
       { duration, easing: EASE_OUT, delay: i * step, fill: 'backwards' }));
   }
@@ -1003,9 +1040,10 @@
 
   // Copies the batch id or the owner's address. Without the clipboard, the value stays on screen to copy by hand.
   function copy(button) {
-    if (!current) return;
     const ofOwner = button.dataset.copy === 'owner';
-    const text = ofOwner ? current.owner : current.batchId;
+    const batchId = current ? current.batchId : reading;   // while loading, the id in the address
+    if (ofOwner ? !current : !batchId) return;
+    const text = ofOwner ? current.owner : batchId;
     const what = ofOwner ? 'address' : 'batch id';
     const done = () => toast(ofOwner ? 'Owner address copied' : 'Batch id copied');
     const fail = () => toast(text, { ms: TOAST_LONG_MS, say: 'Could not copy. The ' + what + ' is shown on screen.' });
@@ -1017,21 +1055,29 @@
   // ---------- 9. Loading and keeping fresh
 
   // Reads the stamp in the URL, or the demo, and shows it. Safe to call again: the newest call wins.
+  // With nothing on screen, a stamp read from the chain shows as soon as its balance is read (showFirstLook()), and
+  // until then the skeleton says which step the read is on.
   async function start(demo = DEMO) {
     const run = ++generation;
-    stop('refresh', 'replay');
+    stop('refresh', 'replay', 'fill');
     const { id, asked } = idFromUrl();
     if (!demo && !id) return renderMissing(asked);
     if (demo === 'loading') return renderLoading();
     if (demo === 'error') return renderError(id);
-    if (!current) renderLoading();
+    const progress = current ? {} : {
+      onStep: step => { if (run === generation) showStep(step); },
+      onFirstLook: (doc, txs) => { if (run === generation) showFirstLook(doc, txs, id); }
+    };
+    if (!current) renderLoading(demo ? null : id);
 
     let stamp;
     try {
-      stamp = await fetchStamp(id, demo);
+      stamp = await fetchStamp(id, demo, progress);
     } catch (e) {
       console.warn(e);   // no answer, an HTTP error, or a document that breaks the contract
-      if (run === generation) renderError(id);
+      if (run !== generation) return;
+      if (current && (current === firstLook || current === replaying)) current = null;   // Try again starts afresh
+      renderError(id);
       return;
     }
     if (run !== generation) return;   // a newer read took over while this one was out
@@ -1045,28 +1091,72 @@
     }
   }
 
+  // What the skeleton says while the stamp is read: the step the read is on (chain.js).
+  const STEPS = {
+    block: 'Reading Gnosis: the latest block…',
+    history: 'Reading Gnosis: this stamp\'s history…'
+  };
+  function showStep(step) {
+    if (STEPS[step] && document.body.classList.contains('state-loading')) $('until').textContent = STEPS[step];
+  }
+
+  // The stamp's first look, as soon as its balance is read: the number, the date, the bar and the details, while who
+  // kept it alive and the range are read. When this browser showed the stamp before and time was added since (a
+  // payment it had not seen), that version shows instead, so the new time arrives on it as it always has.
+  function showFirstLook(doc, txs, id) {
+    let stamp;
+    try { stamp = checked(doc, id); } catch (e) { return console.warn(e); }   // the whole document will tell
+    if (current && current === firstLook) return showStamp(stamp, { pending: true });   // read again from another RPC
+    if (current) return;   // the version from an earlier visit is on screen
+    const remembered = rememberedVersion(stamp.batchId);
+    if (isActive(remembered) && isActive(stamp) && txs.some(tx => !txsOf(remembered).includes(tx))) {
+      showStamp(remembered);
+      replaying = remembered;
+      replayingSince = performance.now();
+      return;
+    }
+    showStamp(stamp, { animate: 'enter', pending: true });
+  }
+
   // Shows a stamp and plays whatever time arrived since it was last seen:
+  //   its first look on screen: who kept it alive and the range fill in
   //   on screen already (the demo's After top up): the new time arrives in place
   //   seen on an earlier visit, in this browser: that version shows for a beat, then the new time arrives
   //   otherwise: the months add up on first sight
   function showWithChanges(stamp) {
-    const onScreen = isActive(current) && current.batchId === stamp.batchId ? current : null;
-    const remembered = onScreen ? null : rememberedVersion(stamp.batchId);
+    if (firstLook && current === firstLook) return fillIn(stamp);
+    const replayed = replaying && current === replaying ? replaying : null;   // shown by showFirstLook()
+    const onScreen = !replayed && isActive(current) && current.batchId === stamp.batchId ? current : null;
+    const remembered = onScreen ? null : replayed || rememberedVersion(stamp.batchId);
     const added = addedSince(onScreen || remembered, stamp);
-    if (!added.length) return showStamp(stamp, { animate: onScreen ? null : 'enter' });
+    if (!added.length) return showStamp(stamp, { animate: onScreen || replayed ? null : 'enter' });
 
     const gained = daysIn(added);
     if (onScreen) {
       showStamp(stamp, { animate: 'update' });
       return toast(addedNote(gained, stamp));
     }
-    showStamp(remembered);
+    if (!replayed) showStamp(remembered);
+    const shownFor = replayed ? performance.now() - replayingSince : 0;
     const run = generation;
     later('replay', () => whenVisible(() => {
       if (run !== generation || current !== remembered) return;   // something newer is on screen by now
       showStamp(stamp, { animate: 'update' });
       toast(sinceNote(gained));
-    }), prefersReducedMotion() ? 0 : MOTION.replay);
+    }), prefersReducedMotion() ? 0 : Math.max(0, MOTION.replay - shownFor));
+  }
+
+  // The rest of the read joins the first look: the keepers fade in where "Reading" was, the sentence sharpens into
+  // its range, the bar settles. Once the months have filled in, so that never stops halfway.
+  function fillIn(stamp) {
+    const look = current, run = generation;
+    later('fill', () => {
+      if (run !== generation || current !== look) return;
+      const sentence = $('until').textContent;
+      showStamp(stamp, { animate: 'fill' });
+      for (const li of $('rank').children) li.animate([{ opacity: 0 }, { opacity: 1 }], { duration: MOTION.fade.duration, easing: 'ease' });
+      if ($('until').textContent !== sentence) sharpenSoftly($('until'));
+    }, Math.max(0, enterEndsAt - performance.now()));
   }
 
   // Runs fn now, or when the visitor comes back to this tab: news should not play to an empty room.
