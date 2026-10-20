@@ -44,7 +44,10 @@ const REORG_BLOCKS = 20n;                          // the newest blocks are read
 // How far before a payment to look for the price in force. The price changes about every 13 minutes, so the first
 // window almost always has it.
 const PRICE_WINDOWS = [2000n, 20000n, 200000n];
-const RAN_OUT_WINDOWS = 6;                         // how many 30 day windows to walk for when an expired stamp ran out
+// How far to walk the price history for when an expired stamp ran out: six times 30 days from its creation, or seven
+// back from today.
+const WALK_FORWARD_BLOCKS = 6n * RANGE_BLOCKS;
+const WALK_BACK_BLOCKS = 7n * RANGE_BLOCKS;
 const CONCURRENCY = 6;                             // payments read at once, two calls each in a batch
 const BATCH_SIZE = 100;                            // calls in one JSON-RPC batch, at most
 const PRICE_UPDATE_TOPIC = '0xae46785019700e30375a5d7b4f91e32f8060ef085111f896ebf889450aa2ab5a';   // PriceUpdate(uint256)
@@ -299,27 +302,38 @@ async function priceAt(client, payment) {
 //   - the creation, where BatchCreated pins the total exactly (its balance minus what it paid per chunk), forward
 // It starts from the end that looks closer, judging by `lifeBlocks`, the life its payments bought, and tries the other
 // if that one gives up. Expired is final, the contract refuses top ups on it, so this runs once per batch and tab.
-// Null when the block is further than the walks go: RAN_OUT_WINDOWS x 30 days of price history from the creation,
-// one more window from today.
-async function ranOutBlock(client, { created, createdPrice, balance, totalOut, head, lastEvent, lifeBlocks }) {
-  const back = () => walkBack(client, totalOut - balance, head);
-  const forward = () => walkForward(client, created, createdPrice, balance, head);
+// Null when the block is further than the walks go: WALK_FORWARD_BLOCKS from the creation, WALK_BACK_BLOCKS from today.
+//
+// Every PriceUpdate a walk passes has to be read, about 110 a day, so it reads in windows sized by a guess at how far
+// it has to go: the guess, a quarter more and a day, then twice as much each time, never more than 30 days at once. A
+// stamp that ran out a week after its creation costs a week and a half of prices, not 30 days of them.
+async function ranOutBlock(client, { created, createdPrice, balance, totalOut, head, lowPrice, lastEvent, lifeBlocks }) {
+  const overshoot = totalOut - balance;
+  const back = () => walkBack(client, overshoot, head, overshoot / lowPrice);
+  const forward = () => walkForward(client, created, createdPrice, balance, head, lifeBlocks);
   const [first, second] = lifeBlocks <= head - created.block - lifeBlocks ? [forward, back] : [back, forward];
   const block = (await first()) ?? (await second());
   return block != null && block > lastEvent && block <= head ? block : null;
 }
 
-async function walkBack(client, overshoot, head) {
-  const limit = maxOf([head - BigInt(RAN_OUT_WINDOWS + 1) * RANGE_BLOCKS], DEPLOY_BLOCK);   // the oldest block it reads
+const firstWindow = guess => minOf([guess + guess / 4n + BigInt(BLOCKS_PER_DAY)], RANGE_BLOCKS);
+const nextWindow = span => minOf([span * 2n], RANGE_BLOCKS);
+
+// `guess`: the blocks since it ran out at the lowest price sampled in the last 30 days, which is more blocks than at
+// today's price when the price has risen.
+async function walkBack(client, overshoot, head, guess) {
+  const limit = maxOf([head - WALK_BACK_BLOCKS], DEPLOY_BLOCK);   // the oldest block it reads
   const older = [];                           // popped newest first
   let end = head;                             // blocks (update, end] were paid at that update's price
   let windowStart = head + 1n;                // the oldest block read so far
+  let span = firstWindow(guess);
   for (;;) {
     if (!older.length) {
       if (windowStart <= limit) return null;
-      const from = maxOf([windowStart - RANGE_BLOCKS], limit);
+      const from = maxOf([windowStart - span], limit);
       older.push(...await priceUpdatesBetween(client, from, windowStart - 1n));
       windowStart = from;
+      span = nextWindow(span);
       continue;
     }
     const update = older.pop();
@@ -330,20 +344,24 @@ async function walkBack(client, overshoot, head) {
   }
 }
 
-async function walkForward(client, created, createdPrice, balance, head) {
+// `guess`: the blocks its payments bought, at the prices they were made at.
+async function walkForward(client, created, createdPrice, balance, head, guess) {
   const perChunk = created.args.totalAmount / (1n << BigInt(created.args.depth));
   let need = balance - (created.args.normalisedBalance - perChunk);   // what is left to pay out after the creation
   let start = created.block;                  // blocks (start, update] are paid at `price`
   let price = createdPrice;
-  let windowEnd = created.block - 1n;
+  const limit = created.block - 1n + WALK_FORWARD_BLOCKS;              // the newest block it reads
+  let windowEnd = created.block - 1n;         // the newest block read so far
+  let span = firstWindow(guess);
   const after = u => u.block > created.block || u.index > created.index;
-  for (let windows = 0; ;) {
+  for (;;) {
     const updates = [];
     if (windowEnd < head) {
-      if (++windows > RAN_OUT_WINDOWS) return null;
-      const to = windowEnd + RANGE_BLOCKS < head ? windowEnd + RANGE_BLOCKS : head;
+      if (windowEnd >= limit) return null;
+      const to = minOf([windowEnd + span, head], limit);
       updates.push(...(await priceUpdatesBetween(client, windowEnd + 1n, to)).filter(after));
       windowEnd = to;
+      span = nextWindow(span);
     }
     for (const update of updates) {
       const cost = price * (update.block - start);
@@ -471,7 +489,8 @@ async function readFrom(rpc, id, withUsd) {
       const createdPrice = await priceAt(client, created);
       const lastEvent = events[events.length - 1].block;
       const lifeBlocks = BigInt(Math.round(paid.reduce((sum, p) => sum + p.days, 0) * BLOCKS_PER_DAY));
-      ranOut.set(id, await ranOutBlock(client, { created, createdPrice, balance, totalOut, head, lastEvent, lifeBlocks }));
+      const lowPrice = minOf([sampled.rounds, sampled.tail].flat(2).map(e => e.args.price), price);
+      ranOut.set(id, await ranOutBlock(client, { created, createdPrice, balance, totalOut, head, lowPrice, lastEvent, lifeBlocks }));
     }
     const block = ranOut.get(id);
     expiry = { time: block == null ? null : iso(await timeOfBlock(client, block)), earliest: null, latest: null,
