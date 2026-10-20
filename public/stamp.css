@@ -305,3 +305,18 @@ footer a{text-decoration:none}
 html.mode-record .full-only{display:none !important}
 html.mode-full .record-only{display:none !important}
 footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--muted)}
+
+/* the record's preview: dashed months beyond the paid end, the number it would reach, the date it would reach */
+.month.ghost{background:transparent;border:1.5px dashed var(--primary);opacity:.55}
+.month.ghost .fill{background:var(--primary);opacity:.18}
+.num .to{font-size:.5em;color:var(--primary);font-weight:700;letter-spacing:-.02em}
+.num .to::before{content:"→ ";color:var(--muted);font-weight:400}
+.until.would{color:var(--primary);margin-top:2px}
+.sheet .rule{padding:8px 10px;border-radius:var(--radius-sm);background:var(--subtle)}
+.sheet .rule b,.sheet .links a{color:var(--ink)}
+.sheet .links a{color:var(--primary);text-decoration:none;margin-right:14px}
+/* record mode: Adding time, See every event, Read the contract, How postage works */
+html.mode-record #addingBtn{order:1}
+html.mode-record #eventsLink{order:2}
+html.mode-record #contractLink{order:3}
+html.mode-record #docsLink{order:4}

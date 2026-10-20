@@ -7,7 +7,7 @@
 
   public/ carries both builds. The full page's own markup sits between <!-- full-only --> and <!-- /full-only -->
   markers in index.html; the record build is the page without those blocks, fixed in record mode on <html> so it
-  does not depend on the visitor's clock. The script is the same file, with no destination to hand off to, and the
+  does not depend on the visitor's clock. The sheet stays: in record mode it previews a stretch on the bar. The script is the same file, with no destination to hand off to, and the
   demo documents are the record as the page reads it. The build checks its output before it finishes.
 
   Node only, no dependencies. The build refuses to run if a marker is unbalanced.
@@ -75,7 +75,7 @@ for (const name of examples) {
 
 // The output, checked as served: the record and nothing of the full page.
 const servedPage = readFileSync(join(out, 'index.html'), 'utf8');
-for (const word of [OPEN, CLOSE, 'stamptime-topups-from', 'id="sheet"', 'id="addBtn"', 'id="donateCode"', '$']) {
+for (const word of [OPEN, CLOSE, 'stamptime-topups-from', 'data-action="continue"', 'id="addBtn"', 'id="donateCode"', '$']) {
   if (servedPage.includes(word)) throw new Error('record build: index.html still contains ' + word);
 }
 if (readFileSync(join(out, 'stamp.js'), 'utf8').includes('beeport.eth.limo')) throw new Error('record build: stamp.js still carries a hand off address');
