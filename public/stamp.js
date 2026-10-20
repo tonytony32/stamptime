@@ -161,12 +161,13 @@
   }
 
   // The stamp read from Gnosis by chain.js. It loads, and viem with it, only when a real stamp is asked for, so the
-  // demo never touches the chain. It asks for no dollars, since the page shows none.
+  // demo never touches the chain. viem is asked for at the same time as chain.js, not once chain.js asks for it, which
+  // saves a round trip before the first read. It asks for no dollars, since the page shows none.
   async function readFromChain(id, timeoutMs) {
     let timer;
     const timeout = new Promise((resolve, reject) => { timer = setTimeout(() => reject(new Error('Gnosis did not answer in time')), timeoutMs); });
     try {
-      const chain = await Promise.race([import('./chain.js'), timeout]);
+      const [chain] = await Promise.race([Promise.all([import('./chain.js'), import('./vendor/viem.js')]), timeout]);
       return await Promise.race([chain.readStamp(id, { rpcs: RPCS, withUsd: false }), timeout]);
     } finally {
       clearTimeout(timer);
