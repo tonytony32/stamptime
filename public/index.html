@@ -11,13 +11,6 @@
      (chain.js). To read from an API instead, add <meta name="stamptime-api" content="/api/v1"> and the page asks
      GET {stamptime-api}/stamps/{batchId}. See README.md. -->
 <meta name="stamptime-rpc" content="https://rpc.gnosis.gateway.fm https://rpc.gnosischain.com">
-<!-- full-only -->
-<!-- Where "Add time" hands off to. {id} is replaced by the batch id and, if present, {days} by the number of days picked (30, 182 or 365). -->
-<meta name="stamptime-beeport" content="https://beeport.eth.limo/?topup={id}">
-<!-- Until this date the page is the record: what the stamp holds, who kept it alive and how time is added. From then on, the full page with its actions.
-     The blocks between the full-only markers belong to the full page; the record build (tools/build-record.mjs) is the page without them. -->
-<meta name="stamptime-topups-from" content="2026-11-07T00:00:00Z">
-<!-- /full-only -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="./stamp.css">
 </head>
@@ -45,13 +38,30 @@
   <section class="card notice" id="notice" hidden></section>
 
   <section class="card meter" aria-label="Time left">
-    <h1 tabindex="-1"><span class="stampid">Postage stamp <span class="mono" id="stampShort">&hellip;</span></span> <span class="pill" id="pill">Reading</span></h1>
-    <div class="num" aria-hidden="true"><span id="days">00</span><span class="to" id="daysTo" hidden></span><small id="daysLabel">days left</small></div>
+    <div class="meter-head">
+      <h1 tabindex="-1" class="stampid">Postage stamp <span class="mono" id="stampShort">&hellip;</span></h1>
+      <span class="id-tools"><button class="copy" type="button" data-action="copy" data-copy="batch" aria-label="Copy batch id"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button><button class="copy qr-btn" type="button" data-action="point-qr" popovertarget="qrPop" aria-label="Show the batch id as a QR code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="16" y="3" width="5" height="5" rx="1"/><rect x="3" y="16" width="5" height="5" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1"/></svg></button></span>
+      <span class="pills"><span class="pill preview" id="previewPill" hidden><i class="swatch plan-fill"></i>Preview</span> <span class="pill" id="pill">Reading</span></span>
+    </div>
+    <div class="num" aria-hidden="true"><span id="days">00</span><span class="to" id="daysTo" hidden><span class="v" id="daysToNum"></span></span><small id="daysLabel">days left</small></div>
     <div class="until" id="until">Reading Gnosis&hellip;</div>
-    <div class="until would" id="would" hidden></div>
+    <div class="until would" id="would" aria-live="polite" hidden></div>
     <div class="months" id="months" aria-hidden="true"><i class="month"></i><i class="month"></i><i class="month"></i></div>
     <div class="months-caption"><span id="startCap">Created</span><span id="endCap"></span></div>
-    <div class="waiting" id="waiting" tabindex="-1" hidden><i class="spinner"></i><span>Waiting for Gnosis to confirm your top up. Usually under a minute.</span></div>
+    <!-- Adding time, under the bar it changes: the three stretches side by side, the chosen one hatched on the bar above.
+         A preview: nothing is paid or sent from this page. -->
+    <div class="adder" id="adder" role="group" aria-labelledby="adderH" aria-describedby="adderLead" inert>
+      <div class="adder-body"><div class="adder-inner">
+        <div class="adder-head">
+          <h2 id="adderH">Adding time: what would it take?</h2>
+          <button type="button" class="adder-close" data-action="close-adder">Close</button>
+        </div>
+        <p id="adderLead">Pick a stretch and watch the bar. Today's storage price, this stamp's size, nothing leaves this page.</p>
+        <div class="opts" id="opts" role="radiogroup" aria-label="Duration"></div>
+        <p class="note rule"><b>Who can do it:</b> any address holding BZZ, by adding it to this stamp's balance on the postage contract on Gnosis Chain. The owner stays the owner. <b>This page shows the record;</b> it does not add time, hold funds or sell anything.</p>
+        <p class="note links"><a href="https://docs.ethswarm.org/docs/concepts/incentives/postage-stamps" target="_blank" rel="noopener">How postage works &rarr;</a> <a id="adderContract" href="https://gnosisscan.io" target="_blank" rel="noopener">Read the contract &rarr;</a></p>
+      </div></div>
+    </div>
   </section>
 
   <div class="side">
@@ -61,21 +71,17 @@
     </section>
 
     <nav class="grid" aria-label="What you can do with this stamp">
-      <!-- full-only -->
-      <button type="button" id="addBtn" class="full-only" data-action="add-time" aria-haspopup="dialog" disabled><span>Add time</span><small id="addSub">Extend with any wallet</small></button>
-      <a href="https://beeport.eth.limo/" class="full-only" target="_blank" rel="noopener">Create another<small>a new stamp</small><span class="sr"> (opens in a new tab)</span></a>
-      <!-- /full-only -->
-      <button type="button" id="addingBtn" class="record-only" data-action="add-time" aria-haspopup="dialog" disabled><span>Adding time</span><small>a month, half a year or a year, on the bar</small></button>
-      <a id="docsLink" href="https://docs.ethswarm.org/docs/concepts/incentives/postage-stamps" class="record-only" target="_blank" rel="noopener">How postage works<small>Swarm docs</small><span class="sr"> (opens in a new tab)</span></a>
+      <button type="button" id="addBtn" class="add-tile" data-action="add-time" aria-controls="adder" aria-expanded="false" disabled><span>Adding time</span><small><span>a month, half a year or a year, on the bar</span><span class="where" aria-hidden="true"><span class="on-wide">&larr; shown on the bar</span><span class="on-narrow">&uarr; shown on the bar</span></span></small></button>
       <a id="eventsLink" href="https://batch-explorer.github.io/" target="_blank" rel="noopener">See every event<small>Batch Explorer</small><span class="sr"> (opens in a new tab)</span></a>
       <a id="contractLink" href="https://gnosisscan.io" target="_blank" rel="noopener">Read the contract<small>Gnosisscan</small><span class="sr"> (opens in a new tab)</span></a>
+      <a id="docsLink" href="https://docs.ethswarm.org/docs/concepts/incentives/postage-stamps" target="_blank" rel="noopener">How postage works<small>Swarm docs</small><span class="sr"> (opens in a new tab)</span></a>
     </nav>
   </div>
 
   <section class="card facts" aria-labelledby="detH">
     <h2 id="detH">Stamp details</h2>
     <dl class="rows">
-      <div class="row"><dt>Batch ID</dt><dd><span id="batchId">&hellip;</span> <button class="copy" type="button" data-action="copy" data-copy="batch" aria-label="Copy batch id"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></dd></div>
+      <div class="row"><dt>Batch ID</dt><dd><span id="batchId">&hellip;</span> <button class="copy" type="button" data-action="copy" data-copy="batch" aria-label="Copy batch id"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button> <button class="copy qr-btn" type="button" data-action="point-qr" popovertarget="qrPop" aria-label="Show the batch id as a QR code"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="16" y="3" width="5" height="5" rx="1"/><rect x="3" y="16" width="5" height="5" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3M21 21v.01M12 7v3a2 2 0 0 1-2 2H7M3 12h.01M12 3h.01M12 16v.01M16 12h1M21 12v.01M12 21v-1"/></svg></button></dd></div>
       <div class="row"><dt>Owner</dt><dd><a class="chain-link" id="ownerLink" href="https://gnosisscan.io" target="_blank" rel="noopener">&hellip;</a> <button class="copy" type="button" data-action="copy" data-copy="owner" aria-label="Copy owner address"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></dd></div>
       <div class="row"><dt>Storage capacity</dt><dd><span id="capacity">&hellip;</span> <span class="ui">usable</span></dd></div>
       <div class="row"><dt>Depth</dt><dd id="depth">&hellip;</dd></div>
@@ -95,7 +101,7 @@
       <summary>Why the date moves</summary>
       <p>Storage is paid per block at a price the network sets. The days left are the balance on this stamp divided by today's storage price. The price can change at most once every 152 blocks, so the date moves a little as the price moves, and never without a reason you can check on chain. The range uses the lowest and highest price of the last 30 days.</p>
     </details>
-    <details id="how" class="record-only">
+    <details id="how">
       <summary>How time is added</summary>
       <p>A stamp is a balance on a contract on Gnosis Chain. The contract spends it block by block at the price the network sets; adding time means adding BZZ to that balance. The contract lets any address do it, not only the owner, and the owner stays the owner. Every addition is a transaction anyone can read, which is where the Keepers list comes from.</p>
       <p>This page shows the record. It does not add time, hold funds or sell anything.</p>
@@ -105,13 +111,6 @@
       <p>The badge reads the same data and links here. Every stamp on Swarm has a page at ethswarm.org/stamp/&lt;id&gt;.</p>
       <span class="badge"><i class="dot"></i>Swarm storage <small id="badgeLine">paid until &hellip;</small></span>
       <code class="code" id="badgeCode"></code>
-      <!-- full-only -->
-      <div class="full-only">
-        <p>And a donate button. It sends to the stamp's owner, <span class="mono" id="donateOwner">&hellip;</span>, from any wallet; it does not add time to the stamp by itself. The owner decides what to do with it.</p>
-        <span class="badge"><i class="dot"></i>Donate <small>to the owner, any wallet</small></span>
-        <code class="code" id="donateCode"></code>
-      </div>
-      <!-- /full-only -->
     </details>
   </section>
 </main>
@@ -127,27 +126,16 @@
     <a href="https://batch-explorer.github.io/" target="_blank" rel="noopener">Batch Explorer</a> &nbsp;
     <a href="https://docs.ethswarm.org" target="_blank" rel="noopener">Docs</a>
   </div>
-  <p class="asci record-only">Crypto products and NFTs are unregulated and can be highly risky. There may be no regulatory recourse for any loss from such transactions.</p>
+  <p class="asci">Crypto products and NFTs are unregulated and can be highly risky. There may be no regulatory recourse for any loss from such transactions.</p>
 </footer>
 
-<div class="scrim" id="scrim" data-action="close-sheet" hidden></div>
-<!-- No aria-modal: the page behind is made inert instead, which keeps #live and #toast audible while the sheet is open. -->
-<div class="sheet" id="sheet" role="dialog" aria-labelledby="sheetH" aria-describedby="sheetLead" hidden>
-  <div class="sheet-inner">
-    <h2 id="sheetH">Add time</h2>
-    <p id="sheetLead">Extends the whole stamp for everyone who uses it. It does not make it yours.</p>
-    <div class="opts" id="opts" role="radiogroup" aria-label="Duration"></div>
-    <!-- full-only -->
-    <div class="full-only">
-      <p class="note">Storage duration is approximate. Amounts are today's estimate in BZZ, with the dollar equivalent under each. Beeport is Swarm's checkout: it shows the final price, the chain and the fee before you sign, from a wallet you already have on Gnosis, Ethereum or other chains. The stamp is checked on chain before you leave this page.</p>
-      <p class="note">If Beeport cannot take the id from here, <button type="button" data-action="copy" data-copy="batch">copy it</button> and paste it into Beeport's Top up.</p>
-      <button class="btn primary go" type="button" data-action="continue">Continue to Beeport<span class="sr"> (opens in a new tab)</span></button>
-    </div>
-    <!-- /full-only -->
-    <p class="note rule record-only"><b>Who can do it:</b> any address holding BZZ, by adding it to this stamp's balance on the postage contract on Gnosis Chain. The owner stays the owner. <b>This page shows the record;</b> it does not add time, hold funds or sell anything.</p>
-    <p class="note links record-only"><a href="https://docs.ethswarm.org/docs/concepts/incentives/postage-stamps" target="_blank" rel="noopener">How postage works &rarr;</a> <a id="sheetContract" href="https://gnosisscan.io" target="_blank" rel="noopener">Read the contract &rarr;</a></p>
-    <button class="cancel" type="button" id="sheetClose" data-action="close-sheet">Cancel</button>
-  </div>
+<!-- The batch id as a QR code, for a phone or a wallet app to read. A popover under the icon that opened it: a tap
+     outside or Escape closes it. stamp.js draws the code with qr.js. -->
+<div class="qr-pop" id="qrPop" popover role="dialog" aria-labelledby="qrH">
+  <p class="qr-h" id="qrH">Batch ID</p>
+  <div class="qr-code" id="qrCode" role="img" aria-label="QR code of the batch id"></div>
+  <p class="qr-id mono" id="qrId"></p>
+  <p class="qr-note">Scan it to use the id on a phone or in a wallet app.</p>
 </div>
 <div class="toast" id="toast" hidden></div>
 <div class="sr" id="live" role="status"></div>
