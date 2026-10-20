@@ -2,11 +2,16 @@
   Stamptime. Batch Explorer's look: Roboto, slate greys, indigo as the one colour, white cards with a hairline and
   a soft shadow, mono for anything read from the chain.
 
-  Sections follow the page: tokens, base, shared pieces, header, notice, meter, Add time, keepers, tiles, details,
-  footer, toast, states, demo bar, desktop, motion and contrast preferences.
+  The file follows the page from top to bottom, then the rules that cut across it:
+     1. Font and tokens          7. Adding time             13. Toast
+     2. Base                     8. Keepers                 14. States
+     3. Shared pieces            9. Tiles                   15. Demo bar
+     4. Header                  10. Details                 16. Desktop
+     5. Notice                  11. The QR code             17. Motion and contrast preferences
+     6. Meter                   12. Footer
 */
 
-/* ---------- tokens */
+/* ---------- 1. Font and tokens */
 
 /* Roboto from this folder: one variable file for 400, 500 and 700 (tools/roboto.sh, SIL Open Font License,
    fonts/OFL.txt). Until it arrives, and for the arrows it has none of, the system font */
@@ -37,7 +42,7 @@
   /* stacking: arriving keeper 1, header 2, toast 3 */
 }
 
-/* ---------- base */
+/* ---------- 2. Base */
 
 *{box-sizing:border-box}
 html{background:var(--bg);scrollbar-color:var(--line-strong) var(--bg)}
@@ -55,7 +60,7 @@ h1[tabindex="-1"]:focus{outline:none}   /* the headings take focus only from the
 main{max-width:var(--page);margin:0 auto;padding:16px 16px 0;display:grid;gap:12px}
 .side{display:contents}   /* the keepers and the tiles: a column of their own on desktop */
 
-/* ---------- shared pieces, Batch Explorer's vocabulary */
+/* ---------- 3. Shared pieces, Batch Explorer's vocabulary */
 
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:16px}
 .card :is(h1,h2){display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0;font-size:16px;font-weight:600}
@@ -87,7 +92,7 @@ dd .copy{vertical-align:-1px}
 dd .copy + .copy{margin-left:4px}   /* room between the hit areas */
 @media (hover:hover){.copy:hover{color:var(--ink)}}
 
-/* ---------- header, as Batch Explorer's: wordmark, then the live block */
+/* ---------- 4. Header, as Batch Explorer's: wordmark, then the live block */
 
 .hdr{position:sticky;top:0;z-index:2;background:var(--card);box-shadow:var(--shadow)}
 .hdr-inner{max-width:var(--page);margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -97,16 +102,16 @@ dd .copy + .copy{margin-left:4px}   /* room between the hit areas */
   white-space:nowrap;font-variant-numeric:tabular-nums}
 .live .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green)}
 
-/* ---------- notice: not found and error, in place of everything else */
+/* ---------- 5. Notice: not found and error, in place of everything else */
 
 .card.notice h1{font-size:18px}
 .notice p{margin:8px 0 0;max-width:60ch;color:var(--muted)}
 .notice .mono{color:var(--ink);overflow-wrap:anywhere}
 .notice .actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 
-/* ---------- meter: the number, the sentence, the bar */
+/* ---------- 6. Meter: the number, the sentence, the bar */
 
-.meter{position:relative;scroll-margin-top:64px}   /* Add time brings the bar back into view, clear of the sticky header */
+.meter{position:relative;scroll-margin-top:64px}   /* Adding time brings the bar back into view, clear of the sticky header */
 
 /* the head: which stamp, its copy and QR icons, then the pills at the far end */
 .meter-head{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
@@ -143,7 +148,7 @@ dd .copy + .copy{margin-left:4px}   /* room between the hit areas */
 .month.now:first-child::before{transform:translateX(-20%)}   /* in the first month, a centred label would hang off the left edge */
 .months-caption{position:relative;display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:12px;color:var(--muted);white-space:nowrap}
 
-/* the preview, while Add time is open: the stretch it would add hatched on the bar from the paid end, the number
+/* the preview, while Adding time is open: the stretch it would add hatched on the bar from the paid end, the number
    it would reach underlined with the same hatching, the date it would reach, and a Preview pill whose swatch is
    the legend. Everything supposed is hatched; everything paid stays solid */
 .plan-fill{background:var(--hatch),var(--plan-ground);box-shadow:inset 0 0 0 1px var(--plan-edge)}
@@ -159,86 +164,8 @@ dd .copy + .copy{margin-left:4px}   /* room between the hit areas */
 .until.would{margin-top:2px;color:var(--primary)}
 .months-caption .to{font-weight:500;color:var(--primary)}
 
-/* ---------- keepers: the names, ranked */
-
-.rank{list-style:none;margin:6px 0 0;padding:0}
-.rank li{position:relative;display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;padding:10px 0;
-  border-top:1px solid var(--line);font-size:14px;transition:border-color .5s ease}
-.rank li:first-child{border-top:0}
-.rank .pos{font-size:12px;font-weight:700;text-align:center;color:var(--muted)}
-.rank .who{min-width:0}
-.rank .who small{display:block;margin-top:1px;font-size:12px;color:var(--muted)}
-.rank .who small .chain-link{font-size:11px}
-.rank .amt{text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
-.rank .amt .bzz{margin-left:6px}
-.rank li.slot{color:var(--muted)}
-.rank li.slot .pos{color:var(--slate)}
-
-/* a new keeper arriving: a lifted card that lands, keeps a tint for a moment, then becomes a row. The negative
-   margin and the padding cancel out, so nothing shifts. stamp.js times the class changes against these fades. */
-.rank li.arriving{z-index:1;margin:0 -10px;padding-left:10px;padding-right:10px;border-radius:10px;border-top-color:transparent;
-  background-color:transparent;box-shadow:0 0 0 1px transparent,0 0 0 0 transparent;
-  transition:box-shadow .5s ease,background-color .9s ease,border-color .5s ease}
-.rank li.arriving.lift{background-color:var(--card);box-shadow:0 0 0 1px var(--line),0 14px 30px -12px rgba(2,8,23,.3)}
-.rank li.arriving.tint{background-color:var(--primary-soft)}
-
-/* ---------- tiles: what you can do with this stamp */
-
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.grid a,.grid button{display:block;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);
-  background:var(--bg);color:var(--ink);font-size:13px;font-weight:500;text-align:left;text-decoration:none;cursor:pointer;
-  transition:background var(--fast),border-color var(--fast),transform var(--press)}
-@media (hover:hover){.grid a:hover,.grid button:enabled:hover{background:var(--subtle);border-color:var(--line-strong)}}
-.grid a:active,.grid button:enabled:active{background:var(--line);transform:scale(.98)}
-.grid small{display:block;margin-top:2px;font-size:11px;font-weight:400;color:var(--muted)}
-.grid button:disabled{color:var(--slate);cursor:default}
-.grid button:disabled > span{text-decoration:line-through}   /* the action, not the reason under it */
-/* Add time's tile while Add time is open: lit like a chosen option, and its line points at the bar, above on a
-   phone and to the left on desktop */
-.grid .add-tile[aria-expanded="true"]{border-color:var(--primary);background:var(--primary-soft)}
-.add-tile .where,.add-tile .on-wide{display:none}
-.add-tile[aria-expanded="true"] small > span:first-child{display:none}
-.add-tile[aria-expanded="true"] .where{display:inline;color:var(--primary)}
-
-/* ---------- details: Batch Explorer's rows, then the disclosures */
-
-.rows{margin:6px 0 0}
-.row{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:baseline;padding:9px 0;border-top:1px solid var(--line)}
-.row:first-child{border-top:0}
-.row dt{font-size:13px;font-weight:500;color:var(--muted)}
-.row dd{margin:0;font-family:var(--mono);font-size:13px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
-.row dd .ui{font-family:var(--ui);color:var(--muted)}
-@media (max-width:420px){.row{grid-template-columns:104px 1fr}}
-
-details{padding:8px 0 0;font-size:13px;color:var(--muted)}
-details + details{margin-top:8px;border-top:1px solid var(--line)}
-summary{display:flex;justify-content:space-between;align-items:center;list-style:none;color:var(--ink);font-weight:500;cursor:pointer}
-summary::-webkit-details-marker{display:none}
-/* the chevron's stroke is --muted */
-summary::after{content:"";flex:none;width:14px;height:14px;transition:transform .2s ease-out;
-  background:center/14px no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B6878' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>")}
-details[open] summary::after{transform:rotate(180deg)}
-details p{margin:8px 0 0;max-width:60ch;line-height:1.55}
-details a{color:var(--primary)}
-.warn{margin-top:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--primary-soft);color:var(--ink)}
-
-.badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:4px 12px 4px 6px;
-  border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--card);box-shadow:var(--shadow);
-  font-size:12px;font-weight:600;color:var(--ink)}
-.badge .dot{display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--primary)}
-.badge small{font-weight:400;color:var(--muted)}
-.code{display:block;margin-top:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--subtle);color:var(--ink);
-  font-family:var(--mono);font-size:11px;overflow-wrap:anywhere}
-
-/* ---------- footer, as Batch Explorer's: where the data came from, then the links */
-
-footer{max-width:var(--page);margin:20px auto 0;padding:14px 16px 0;border-top:1px solid var(--line);
-  display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;font-size:11px;line-height:1.8;color:var(--muted)}
-footer a{text-decoration:none}
-@media (hover:hover){footer a:hover{color:var(--ink)}}
-footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--muted)}
-
-/* ---------- Add time: under the bar, in the meter card. The three stretches side by side as one segmented choice
+/* ---------- 7. Adding time: under the bar, in the meter card. The three stretches side by side as one segmented
+   choice
 
    It unfolds to its own height (a grid row from 0fr to 1fr) and folds away a little faster, its content fading in as
    it settles from a few px up. Closed it is inert and, once folded, hidden. The body's 6px of padding, cancelled by
@@ -278,13 +205,86 @@ footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--m
 .adder .links a{margin-right:14px;color:var(--primary);text-decoration:none}
 @media (hover:hover){.adder .links a:hover{text-decoration:underline}}
 
-/* ---------- the batch id as a QR code: a small card under the icon that opened it, scaling in from there and
-   fading out a little faster. Where anchoring is not supported it sits centred, as a popover does by default */
+/* ---------- 8. Keepers: the names, ranked */
 
+.rank{list-style:none;margin:6px 0 0;padding:0}
+.rank li{position:relative;display:grid;grid-template-columns:18px 1fr auto;gap:10px;align-items:center;padding:10px 0;
+  border-top:1px solid var(--line);font-size:14px;transition:border-color .5s ease}
+.rank li:first-child{border-top:0}
+.rank .pos{font-size:12px;font-weight:700;text-align:center;color:var(--muted)}
+.rank .who{min-width:0}
+.rank .who small{display:block;margin-top:1px;font-size:12px;color:var(--muted)}
+.rank .who small .chain-link{font-size:11px}
+.rank .amt{text-align:right;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
+.rank .amt .bzz{margin-left:6px}
+.rank li.slot{color:var(--muted)}
+.rank li.slot .pos{color:var(--slate)}
+
+/* a new keeper arriving: a lifted card that lands, keeps a tint for a moment, then becomes a row. The negative
+   margin and the padding cancel out, so nothing shifts. stamp.js times the class changes against these fades. */
+.rank li.arriving{z-index:1;margin:0 -10px;padding-left:10px;padding-right:10px;border-radius:10px;border-top-color:transparent;
+  background-color:transparent;box-shadow:0 0 0 1px transparent,0 0 0 0 transparent;
+  transition:box-shadow .5s ease,background-color .9s ease,border-color .5s ease}
+.rank li.arriving.lift{background-color:var(--card);box-shadow:0 0 0 1px var(--line),0 14px 30px -12px rgba(2,8,23,.3)}
+.rank li.arriving.tint{background-color:var(--primary-soft)}
+
+/* ---------- 9. Tiles: what you can do with this stamp */
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grid a,.grid button{display:block;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:var(--radius-md);
+  background:var(--bg);color:var(--ink);font-size:13px;font-weight:500;text-align:left;text-decoration:none;cursor:pointer;
+  transition:background var(--fast),border-color var(--fast),transform var(--press)}
+@media (hover:hover){.grid a:hover,.grid button:enabled:hover{background:var(--subtle);border-color:var(--line-strong)}}
+.grid a:active,.grid button:enabled:active{background:var(--line);transform:scale(.98)}
+.grid small{display:block;margin-top:2px;font-size:11px;font-weight:400;color:var(--muted)}
+.grid button:disabled{color:var(--slate);cursor:default}
+.grid button:disabled > span{text-decoration:line-through}   /* the action, not the reason under it */
+/* The Adding time tile while the sheet is open: lit like a chosen option, and its line points at the bar, above on a
+   phone and to the left on desktop */
+.grid .add-tile[aria-expanded="true"]{border-color:var(--primary);background:var(--primary-soft)}
+.add-tile .where,.add-tile .on-wide{display:none}
+.add-tile[aria-expanded="true"] small > span:first-child{display:none}
+.add-tile[aria-expanded="true"] .where{display:inline;color:var(--primary)}
+
+/* ---------- 10. Details: Batch Explorer's rows, then the disclosures */
+
+.rows{margin:6px 0 0}
+.row{display:grid;grid-template-columns:120px 1fr;gap:12px;align-items:baseline;padding:9px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row dt{font-size:13px;font-weight:500;color:var(--muted)}
+.row dd{margin:0;font-family:var(--mono);font-size:13px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.row dd .ui{font-family:var(--ui);color:var(--muted)}
+@media (max-width:420px){.row{grid-template-columns:104px 1fr}}
+
+details{padding:8px 0 0;font-size:13px;color:var(--muted)}
+details + details{margin-top:8px;border-top:1px solid var(--line)}
+summary{display:flex;justify-content:space-between;align-items:center;list-style:none;color:var(--ink);font-weight:500;cursor:pointer}
+summary::-webkit-details-marker{display:none}
+/* the chevron's stroke is --muted */
+summary::after{content:"";flex:none;width:14px;height:14px;transition:transform .2s ease-out;
+  background:center/14px no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B6878' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>")}
+details[open] summary::after{transform:rotate(180deg)}
+details p{margin:8px 0 0;max-width:60ch;line-height:1.55}
+details a{color:var(--primary)}
+.warn{margin-top:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--primary-soft);color:var(--ink)}
+
+.badge{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:4px 12px 4px 6px;
+  border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--card);box-shadow:var(--shadow);
+  font-size:12px;font-weight:600;color:var(--ink)}
+.badge .dot{display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--primary)}
+.badge small{font-weight:400;color:var(--muted)}
+.code{display:block;margin-top:8px;padding:8px 10px;border-radius:var(--radius-sm);background:var(--subtle);color:var(--ink);
+  font-family:var(--mono);font-size:11px;overflow-wrap:anywhere}
+
+/* ---------- 11. The QR code: the batch id in a small card under the icon that opened it, scaling in from there
+   and fading out a little faster. Where anchoring is not supported it sits centred, as a popover does by default */
+
+/* two transitions: a browser that cannot keep the closing card on screen while it fades (allow-discrete) drops the
+   second as invalid and keeps the first */
 .qr-pop{width:216px;padding:12px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--card);color:var(--ink);
   box-shadow:0 14px 34px -14px rgba(2,8,23,.32),var(--shadow);opacity:0;transform:scale(.96);
-  transition:opacity .12s ease-out,transform .12s var(--ease-out)}
-.qr-pop{transition:opacity .12s ease-out,transform .12s var(--ease-out),overlay .12s allow-discrete,display .12s allow-discrete}
+  transition:opacity .12s ease-out,transform .12s var(--ease-out);
+  transition:opacity .12s ease-out,transform .12s var(--ease-out),overlay .12s allow-discrete,display .12s allow-discrete}
 .qr-pop:popover-open{opacity:1;transform:none;transition-duration:.18s}
 @starting-style{.qr-pop:popover-open{opacity:0;transform:scale(.96)}}
 @supports (position-anchor:--qr) and (position-area:bottom){
@@ -297,13 +297,21 @@ footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--m
 .qr-id{margin:8px 0 0;font-size:11px;line-height:1.45;overflow-wrap:anywhere}
 .qr-note{margin:6px 0 0;font-size:11px;line-height:1.45;color:var(--muted)}
 
-/* ---------- toast */
+/* ---------- 12. Footer, as Batch Explorer's: where the data came from, then the links */
+
+footer{max-width:var(--page);margin:20px auto 0;padding:14px 16px 0;border-top:1px solid var(--line);
+  display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;font-size:11px;line-height:1.8;color:var(--muted)}
+footer a{text-decoration:none}
+@media (hover:hover){footer a:hover{color:var(--ink)}}
+footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--muted)}
+
+/* ---------- 13. Toast */
 
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));z-index:3;transform:translateX(-50%);
   max-width:min(400px,calc(100vw - 32px));padding:9px 14px;border-radius:var(--radius-md);background:var(--ink);color:var(--on-dark);
   font-size:13px;text-align:center;overflow-wrap:anywhere}
 
-/* ---------- states, one class on <body>: loading, paid, soon, expired, missing, error */
+/* ---------- 14. States, one class on <body>: loading, paid, soon, expired, missing, error */
 
 .state-loading .num span{color:var(--line)}
 .state-loading .rank,.state-loading .rows dd{color:var(--slate)}
@@ -318,7 +326,7 @@ footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--m
 
 :is(.state-missing,.state-error) :is(.meter,.side,.facts,.live,footer .chain){display:none}
 
-/* ---------- demo bar, only with ?demo= in the URL. Not part of the product */
+/* ---------- 15. Demo bar, only with ?demo= in the URL. Not part of the product */
 
 .devbar{max-width:var(--page);margin:0 auto;padding:10px 16px 6px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;
   font-size:12px;color:var(--muted)}
@@ -326,7 +334,7 @@ footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--m
 .devbar button{padding:3px 10px;border:1px solid var(--line);border-radius:var(--radius-pill);background:var(--card);cursor:pointer}
 .devbar button[aria-pressed="true"]{border-color:var(--ink);background:var(--ink);color:var(--on-dark)}
 
-/* ---------- desktop: same reading order, two columns. The fact and its details on the left, the people and the
+/* ---------- 16. Desktop: same reading order, two columns. The fact and its details on the left, the people and the
    actions on the right */
 
 @media (min-width:900px){
@@ -343,7 +351,7 @@ footer .asci{flex:0 0 100%;margin:0;font-size:11px;line-height:1.5;color:var(--m
   .notice{max-width:640px}
 }
 
-/* ---------- motion and contrast preferences */
+/* ---------- 17. Motion and contrast preferences */
 
 @media (prefers-reduced-motion:reduce){
   summary::after{transition:none}

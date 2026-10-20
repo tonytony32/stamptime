@@ -5,9 +5,18 @@
   which is up to 213 bytes. A 64 character batch id needs version 5, 37 modules a side.
 
   qrSvg(text) returns the code as SVG markup made of numbers only, with the quiet zone of four modules around it.
+  stamp.js loads this file once a stamp is on screen, so the code is drawn before anyone opens it.
+
+  The file reads top to bottom:
+    1. The code, as SVG and as modules          4. The matrix: fixed patterns, then the data
+    2. The data: byte mode codewords            5. Masks, and the penalty that picks one
+    3. Error correction: Reed-Solomon
 */
 
-// Level M, versions 1 to 10: error correction codewords per block, and how many blocks.
+
+// ---------- 1. The code, as SVG and as modules
+
+// Level M, versions 1 to 10: error correction codewords per block, and how many blocks (the standard's table 9).
 const ECC_PER_BLOCK = [0, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26];
 const BLOCKS = [0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5];
 const FORMAT_M = 0;   // level M in the format bits
@@ -24,7 +33,7 @@ export function qrSvg(text, { dark = '#020817', light = '#FFFFFF', quiet = 4 } =
     '<rect width="' + side + '" height="' + side + '" fill="' + light + '"/><path fill="' + dark + '" d="' + path + '"/></svg>';
 }
 
-// The modules, dark as true, row by row.
+// The modules, dark as true, row by row. Function patterns first, marked reserved so the data flows around them.
 export function qrModules(text) {
   const bytes = [...new TextEncoder().encode(text)];
   const version = smallestVersion(bytes.length);
@@ -51,8 +60,10 @@ export function qrModules(text) {
 }
 
 
-// ---------- the data
+// ---------- 2. The data: byte mode codewords
 
+// How many modules a version leaves for data and error correction once its fixed patterns are drawn: the whole square,
+// less finders, timing, alignment, format and version information.
 const rawDataModules = version => {
   let result = (16 * version + 128) * version + 64;
   if (version >= 2) {
@@ -62,7 +73,9 @@ const rawDataModules = version => {
   }
   return result;
 };
+// Data codewords, once level M's error correction is set aside.
 const dataCapacity = version => Math.floor(rawDataModules(version) / 8) - ECC_PER_BLOCK[version] * BLOCKS[version];
+// The byte count is written in 8 bits up to version 9, in 16 from version 10.
 const countBits = version => version < 10 ? 8 : 16;
 
 function smallestVersion(length) {
@@ -88,7 +101,10 @@ function dataCodewords(bytes, version) {
   return words;
 }
 
-// Split into blocks, add Reed-Solomon codewords to each, and interleave them.
+// ---------- 3. Error correction: Reed-Solomon
+
+// Split into blocks, add Reed-Solomon codewords to each, and interleave them, so that a smudge across neighbouring
+// modules damages several blocks a little rather than one beyond repair. Some versions mix short and long blocks.
 function withErrorCorrection(data, version) {
   const blocks = BLOCKS[version], eccLength = ECC_PER_BLOCK[version];
   const raw = Math.floor(rawDataModules(version) / 8);
@@ -119,6 +135,7 @@ function gfMultiply(x, y) {
   return z;
 }
 
+// The generator polynomial of the given degree, (x - 1)(x - 2)(x - 4)..., highest power first without its leading 1.
 function rsDivisor(degree) {
   const result = Array(degree - 1).fill(0).concat(1);
   let root = 1;
@@ -132,6 +149,7 @@ function rsDivisor(degree) {
   return result;
 }
 
+// The error correction codewords: the remainder of the data, as a polynomial, divided by the generator.
 function rsRemainder(data, divisor) {
   const result = divisor.map(() => 0);
   for (const b of data) {
@@ -143,8 +161,10 @@ function rsRemainder(data, divisor) {
 }
 
 
-// ---------- the matrix
+// ---------- 4. The matrix: fixed patterns, then the data
 
+// What a reader looks for before any data: the timing lines, the three finders in the corners with their light
+// separators, the alignment patterns, a placeholder for the format bits, and from version 7 the version bits.
 function drawFunctionPatterns(version, size, set) {
   for (let i = 0; i < size; i++) {
     set(6, i, i % 2 === 0);
@@ -176,6 +196,7 @@ function drawFunctionPatterns(version, size, set) {
   }
 }
 
+// Where alignment patterns are centred, on both axes: evenly spaced from the far edge back to 6.
 function alignmentPositions(version, size) {
   if (version === 1) return [];
   const count = Math.floor(version / 7) + 2;
@@ -185,6 +206,8 @@ function alignmentPositions(version, size) {
   return result;
 }
 
+// The error correction level and the mask, 5 bits, with 10 bits of BCH code and the standard's XOR, written twice: around
+// the top left finder, and split between the other two.
 function drawFormatBits(mask, size, set) {
   const data = FORMAT_M << 3 | mask;
   let rem = data;
@@ -218,6 +241,9 @@ function drawCodewords(codewords, size, modules, reserved) {
   }
 }
 
+// ---------- 5. Masks, and the penalty that picks one
+
+// The eight mask patterns: a data module is flipped where its pattern is true.
 const MASKS = [
   (x, y) => (x + y) % 2 === 0,
   (x, y) => y % 2 === 0,

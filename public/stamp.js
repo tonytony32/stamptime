@@ -11,7 +11,7 @@
 
   The file reads top to bottom:
      1. Configuration            6. Motion: new time arriving
-     2. Helpers                  7. Add time: the preview under the bar
+     2. Helpers                  7. Adding time: the preview under the bar
      3. Reading a stamp          8. Feedback: toast, announcements, copy
      4. Page state and timers    9. Loading and keeping fresh
      5. Rendering               10. Wiring
@@ -26,11 +26,11 @@
   const SOON_DAYS = 14;                        // "Expiring soon" is a page rule, not an API status
   const BLOCK_SECONDS = 5;                     // Gnosis block time
   const PRICE_ROUND_MS = 152 * BLOCK_SECONDS * 1000;   // the price changes at most once per 152 blocks: re read that often
-  const FETCH_TIMEOUT_MS = 10 * 1000;
+  const FETCH_TIMEOUT_MS = 10 * 1000;          // a read still out after this shows the error state, with Try again
   const TOAST_MS = 3500;
   const TOAST_LONG_MS = 10 * 1000;             // long enough to copy a value by hand
 
-  // Add time's three stretches, previewed on the bar. Half a year starts selected.
+  // Adding time's three stretches, previewed on the bar. Half a year starts selected.
   const DURATIONS = [
     { days: 30, name: 'A month' },
     { days: 182, name: 'Half a year' },
@@ -68,7 +68,7 @@
     card: { duration: 680, delay: 120, stagger: 90, rise: 22,     // a new keeper rising to its rank
       lands: 820, untint: 2000, done: 3000 },                      // done outlasts the .9s tint fade in stamp.css
     fade: { duration: 240 },                                       // reduced motion: the new keeper only fades in
-    preview: { duration: 300, easing: EASE_OUT, stagger: 18, staggerMax: 160,   // the bar following a pick in Add time: quick,
+    preview: { duration: 300, easing: EASE_OUT, stagger: 18, staggerMax: 160,   // the bar following a pick in Adding time: quick,
       enter: 240, exit: 150, swap: 180 },                          // it follows a hand. Pieces coming, going, changing
     toast: { enter: 240, exit: 160 },
     replay: 520                                                    // how long a remembered version shows before the new time arrives
@@ -253,9 +253,9 @@
   // Everything that changes while the page is open. Each variable names what writes it.
 
   let current = null;              // the stamp on screen: showStamp(); switchDemo() clears it
-  let chosenDays = DEFAULT_DAYS;   // the duration picked in Add time, kept across re reads: chooseDuration()
+  let chosenDays = DEFAULT_DAYS;   // the duration picked in Adding time, kept across re reads: chooseDuration()
   let previewDays = 0;             // the stretch drawn on the bar right now, 0 for none: showPreview(), clearPreview()
-  let opener = null;               // what opened Add time, to give focus back on close: openAdder()
+  let opener = null;               // what opened Adding time, to give focus back on close: openAdder()
   let generation = 0;              // bumped by start(), so an older, slower read never overwrites a newer one
   let countRun = 0;                // bumped to stop the number counting up: countTo(), renderHeadline(), renderLoading()
   let paintBlockClock = null;      // repaints the live block: startBlockClock(), stopBlockClock()
@@ -345,7 +345,7 @@
   // The bar: the whole life of the stamp, one block per month, always filling the width. Spent time veiled,
   // today as the line, the time ahead bright, and the estimate dissolving across the end.
   // Each month is an <i>; its colour layers, the fill, the spent veil and the plan, are <b>s.
-  // extraDays: Add time's preview. The stretch it would add is hatched from the paid end on, in the plan layer,
+  // extraDays: Adding time's preview. The stretch it would add is hatched from the paid end on, in the plan layer,
   // and the bar takes in the months it needs, so paying for more squeezes more blocks in, as it would.
   // The months are kept from one render to the next, so the bar can move instead of jumping. `motion` names the pace
   // in MOTION ('preview' or 'arrival'): months the bar gains widen in one after another from where it reached, months
@@ -534,8 +534,9 @@
     $('badgeCode').textContent = '<script src="' + BADGE_JS + '" data-batch="' + stamp.batchId + '"></script>';
   }
 
-  // The batch id as a QR code, in the popover the QR icons open. qr.js loads the first time a stamp is drawn, so the
-  // code is ready before anyone asks for it. The markup is numbers only; the id itself is never put in it.
+  // The batch id as a QR code, in the popover the QR icons open. qr.js loads the first time a stamp is drawn, after the
+  // stamp is on screen, so it never delays it, and the code is ready before anyone asks for it: 4 KB, where loading it
+  // on the first tap would leave the card empty for a round trip. The markup is numbers only; the id is never put in it.
   function renderQr(batchId) {
     if ($('qrId').textContent === batchId) return;
     $('qrId').textContent = batchId;
@@ -573,7 +574,7 @@
       : html`<span class="ui">not read</span>`;
   }
 
-  // Add time: three stretches side by side, each counted from the current end and priced in BZZ at today's price.
+  // Adding time: three stretches side by side, each counted from the current end and priced in BZZ at today's price.
   // The chosen one is drawn on the bar: showPreview(). Nothing leaves the page.
   function renderAdder(stamp) {
     const options = $('opts');
@@ -782,7 +783,7 @@
   }
 
   // What a change in the meter pushes aside slides there from where it was, instead of jumping: the number, the
-  // sentences, the bar and its caption, Add time, and "days left" beside the number. Translation only, so nothing
+  // sentences, the bar and its caption, Adding time, and "days left" beside the number. Translation only, so nothing
   // stretches. Pieces that appear or go are left out; they fade on their own.
   function easeAside(change) {
     if (prefersReducedMotion()) return change();
@@ -881,9 +882,9 @@
   }
 
 
-  // ---------- 7. Add time: the preview under the bar
+  // ---------- 7. Adding time: the preview under the bar
 
-  // Add time opens in the meter card, under the bar it changes: nothing covers the page, and each pick is drawn on
+  // Adding time opens in the meter card, under the bar it changes: nothing covers the page, and each pick is drawn on
   // the bar as it is made. A preview only: nothing is paid or sent from here. Its tile toggles it; focus goes to the
   // chosen stretch, and back where it came from.
   const isAdderOpen = () => $('adder').hasAttribute('data-open');
@@ -926,7 +927,7 @@
     opener = null;
   }
 
-  // Closed, Add time is inert, so nothing in it can be reached while it folds away.
+  // Closed, Adding time is inert, so nothing in it can be reached while it folds away.
   function setAdderOpen(open) {
     $('adder').toggleAttribute('data-open', open);
     $('adder').inert = !open;
