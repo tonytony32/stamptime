@@ -2,7 +2,7 @@
 
 A public page for one Swarm postage stamp. It answers one question for anyone who lands on it, **how long is this paid for?**, shows who has been keeping it alive, and offers a way for anyone to interact with the stamp.
 
-Its ideal place is `ethswarm.org/stamp/<batchId>`, served by the Swarm Foundation as a service, for any stamp on the network. Any other place where Swarm's tooling is presented works just as well.
+It is one static page that reads the chain itself, so it can live anywhere: on Swarm behind an ENS name such as `stamptime.eth`, or on any static host. Open it with `?id=<batchId>`.
 
 It stands on the great work of [Batch Explorer](https://batch-explorer.github.io/): the page borrows its look, and sends anyone who wants every event of a batch there.
 
@@ -158,7 +158,7 @@ With `<meta name="stamptime-api" content="/api/v1">` in `index.html`, the page a
 - Always answer **200** with a JSON body, including for a stamp that does not exist (`{"batchId": "<the id>", "status": "not_found"}`). The page also accepts a 404 with that same body, but any other 404 is treated as "the API is not where I expected", which shows the error state, not "no stamp".
 - The page checks each document against this contract before drawing it. One that does not match the schema, or carries another `batchId` than the one asked for, shows the error state, with the reason in the browser console.
 - `400` for a malformed id. The page validates the id before calling, so this should not happen from the page.
-- Headers: `Content-Type: application/json`, `Access-Control-Allow-Origin: *` (the badge will call it from other sites), `Cache-Control: public, max-age=15`.
+- Headers: `Content-Type: application/json`, `Access-Control-Allow-Origin: *` (so other sites can read it too), `Cache-Control: public, max-age=15`.
 
 Keep the cache short, so time someone adds shows up on the page's next read.
 
@@ -381,7 +381,7 @@ On Swarm itself, upload `public/` as a website with `index.html` as both the ind
 
 **The RPCs.** Any Gnosis JSON-RPC that allows browser requests (CORS) and `eth_getLogs` over the batch's history, listed in `stamptime-rpc` in the order to try them. The defaults are the one Batch Explorer uses, `rpc.gnosis.gateway.fm`, then Gnosis's own, `rpc.gnosischain.com`. If one fails partway through a read, the whole read is done again on the next, so the footer always names the RPC the page shows.
 
-**An API, if you want one.** Wherever you like, as long as `stamptime-api` in `index.html` points at it. Same origin is simplest. Keep CORS open for the badge.
+**An API, if you want one.** Wherever you like, as long as `stamptime-api` in `index.html` points at it. Same origin is simplest. Keep CORS open, so other sites can read it too.
 
 **Fonts.** Roboto, the font Batch Explorer loads from Google Fonts, is served with the page from `public/fonts/`: one 25 KB file for the three weights, cut to the characters the page shows, made by [`tools/roboto.sh`](tools/roboto.sh), under the SIL Open Font License (`public/fonts/OFL.txt`). The page loads no stylesheet or font from another origin, and shows the system font until the file arrives, or if it fails.
 
@@ -410,7 +410,7 @@ These came out of the research and the design rounds. Please keep them when you 
 | 1 | Who signs the `topUp` transaction when someone pays with another token or from another chain? | If top ups are executed from a shared relayer address, `tx.from` is the relayer for everyone and the ranking becomes one row. Those rows would need the original payer, or a "via relayer" label. |
 | 2 | Are public RPCs enough for a link shared widely? | Every visitor reads the chain, as on Batch Explorer, from their own browser. The two defaults answer every read the page needs and back each other up. Their rate limits are not known yet; check them before a big launch. A busy link may want its own node at the top of `stamptime-rpc`. No archive node is needed. |
 | 3 | Price range: 30 day history or a fixed band for v1? | Settled: `chain.js` reads the 30 day history in one request. |
-| 4 | Badge script (`ethswarm.org/stamp/badge.js`) | The page already shows the embed line. The badge needs only the stamp document, from `chain.js` or an API. Not needed for a first release. |
+| 4 | A badge for other sites | A small embed that shows a stamp's paid until date and links to its page. Not built, and the page shows no embed line until it is. It needs only the stamp document, from `chain.js` or an API. Not needed for a first release. |
 | 5 | Batches copied from an older PostageStamp deployment | Their `BatchCreated` on the current contract may be the copy, not the original purchase, so "Created" could show the migration date. Fine for v1; worth a look. |
 
 ---
