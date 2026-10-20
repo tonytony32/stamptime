@@ -73,7 +73,7 @@ Then open a real stamp, read live from Gnosis: `http://localhost:8080/?id=<batch
 | http://localhost:8080/?demo=active | A paid stamp, 73 days left, two keepers |
 | http://localhost:8080/?demo=topped | The same stamp after someone added six months |
 | http://localhost:8080/?demo=expiring | 9 days left, the pill turns amber |
-| http://localhost:8080/?demo=expired | The balance ran out, Add time is disabled |
+| http://localhost:8080/?demo=expired | The balance ran out, Adding time is disabled |
 | http://localhost:8080/?demo=not_found | An id that was never created |
 | http://localhost:8080/?demo=loading | The page while it reads the stamp |
 | http://localhost:8080/?demo=error | The RPC did not answer |
@@ -121,22 +121,26 @@ The only interface the page cares about is the JSON document. `public/chain.js` 
 
 ### How the page reads the chain
 
-A first visit costs about a dozen small requests, under a second on the public RPC. Each re read while the page stays open costs four.
+A first visit to an active stamp costs three requests to the RPC, about 50 KB compressed, since calls made together go out as one JSON-RPC batch: the block, then everything that only needs the block, then everything that needs the batch's history. Each re read while the page stays open costs two.
 
-| What | How | Requests |
-|---|---|---|
-| The batch's history | One `eth_getLogs` on PostageStamp filtered by batch id, from the deployment block. The Gnosis RPC answers it in one go, as it does for Batch Explorer, with each log's block time | 1 |
-| What is left | `currentTotalOutPayment()` and `lastPrice()`, both at the block just read. What is left per chunk is the batch's last `normalisedBalance` minus that total, so a batch the contract has already removed still reads | 3 with the block |
-| The range | `PriceUpdate` events of the last 30 days, one `eth_getLogs` (about 3,300 events) | 1 |
-| The days each payment bought | The `PriceUpdate` in force at its block: from the 30 days above, or a window of blocks before it | 0 or 1 per payment |
-| Who paid | `eth_getTransaction`, since `BatchTopUp` carries no payer | 1 per payment |
-| When an expired batch ran out | The price history walked from its creation or from today, whichever is closer (step 4 below) | 1 to 12, once |
+| What | How | Calls | Request |
+|---|---|---|---|
+| The block | `eth_getBlockByNumber`, the latest. Every live value is read at it | 1 | 1st |
+| The batch's history | One `eth_getLogs` on PostageStamp filtered by batch id, from the deployment block. The Gnosis RPC answers it in one go, as it does for Batch Explorer, with each log's block time | 1 | 2nd |
+| What is left | `currentTotalOutPayment()` and `lastPrice()`, both at the block just read. What is left per chunk is the batch's last `normalisedBalance` minus that total, so a batch the contract has already removed still reads | 2 | 2nd |
+| The range, sampled | `PriceUpdate` events of one round in 53 over the last 30 days (a round has one, unless the oracle skipped it), and every block after the last of them | about 66 | 2nd |
+| The range, where it lies | For an active stamp only, read whole: where the 30 days start, and the stretches beside the three highest and three lowest samples | about 8 | 3rd |
+| The days each payment bought | The `PriceUpdate` in force at its block, from a window of 2,000 blocks before it | 1 per payment | 3rd, and one more per 24 payments |
+| Who paid | `eth_getTransactionByHash`, since `BatchTopUp` carries no payer | 1 per payment | 3rd, and one more per 24 payments |
+| When an expired batch ran out | The price history walked from its creation or from today, whichever is closer, in windows sized by a guess at how far (step 4 below) | 1 to a dozen, once | 4th on |
 
-What cannot change (who paid, past prices, block times, when a batch ran out) is kept for the life of the tab, and the event lists fetch only what is new. Nothing needs an archive node.
+**The range** is the lowest and the highest price of the last 30 days. All of them is about 3,300 `PriceUpdate` events, 1.6 MB of JSON and 300 KB compressed, more than the rest of the page together; it used to be one read, which on a slow 3G link could not finish within the page's timeout. The price changes at most once a round of 152 blocks, by at most 0.08%, so its lowest and highest points lie next to the lowest and highest of a few samples, or at the ends of the 30 days when it trends. `chain.js` reads those samples, then reads whole only the stretches where the lowest and highest can lie, passing over samples whose round had no update, since the oracle sometimes skips dozens of rounds (section 4 of `chain.js`): about 500 events instead of 3,300. Replayed every 3 hours over 430 days of real prices, it found the same lowest and highest price as reading all of them at 2,580 of 2,581 heads; the other moved an end of the range by 50 minutes, and the "give or take" shown, for stamps with 9 to 730 days left, was the same at every head.
+
+What cannot change (who paid, past prices, block times, when a batch ran out, the samples and stretches of the range) is kept for the life of the tab, and the event lists fetch only what is new. Nothing needs an archive node.
 
 **Load.** Every visitor reads the chain on their own, as on Batch Explorer, and a link shared widely sends that traffic to the RPCs in `stamptime-rpc`. The page uses the first that answers and falls back to the next, so one node down or rate limited does not take it down. Add a node of your own to the list, or set `stamptime-api` and serve the document from a cache.
 
-**viem.** Version 2.47.6, the one Batch Explorer uses, is vendored as `public/vendor/viem.js`: 118 KB, 35 KB compressed, built from [`tools/viem.entry.js`](tools/viem.entry.js), which says how to build it again. `chain.js` and viem load only when a real stamp is asked for, so the demo never touches the chain.
+**viem.** Version 2.47.6, the one Batch Explorer uses, is vendored as `public/vendor/viem.js`: 46 KB, 15 KB compressed, built from [`tools/viem.entry.js`](tools/viem.entry.js), which says how to build it again. It holds the client and its http transport, the ABI decoders and the address checksum, and none of viem's actions: `chain.js` sends its few calls itself, since `readContract` alone would add 63 KB. `chain.js` and viem load only when a real stamp is asked for, at the same time, so the demo never touches the chain.
 
 ---
 
@@ -277,7 +281,7 @@ const secondsLeft = Number(remaining / price) * 5
 const expiry = new Date((Number(block.timestamp) + secondsLeft) * 1000)
 ```
 
-For the range, take the lowest and highest `PriceUpdate` price of the last 30 days (about 518,400 blocks, one `eth_getLogs`):
+For the range, take the lowest and highest `PriceUpdate` price of the last 30 days (about 518,400 blocks; one `eth_getLogs` of about 3,300 events, or sampled as `chain.js` does, see [How the page reads the chain](#how-the-page-reads-the-chain)):
 
 ```ts
 const earliest = Number(block.timestamp) + Number(remaining / maxPrice30d) * 5   // price up, ends sooner
@@ -310,7 +314,7 @@ const address = tx.from
 
 `totalAmount` in `BatchCreated` and `topupAmount` in `BatchTopUp` are both totals for the whole batch (per chunk amount times `2 ** depth`), in PLUR. `usd` is that amount divided by 1e16, times the BZZ to USD rate at the time.
 
-**Log ranges.** Both RPCs in `stamptime-rpc` answer `eth_getLogs` filtered by batch id from the deployment block in one request, as `rpc.gnosis.gateway.fm` does for Batch Explorer, and 30 days of `PriceUpdate` in another. Many public RPCs cap ranges (to 50,000 or 10,000 blocks on the free tiers tried): read in windows then (10,000 blocks is a safe start), and follow the head rather than reading the history again.
+**Log ranges.** Both RPCs in `stamptime-rpc` answer `eth_getLogs` filtered by batch id from the deployment block in one request, as `rpc.gnosis.gateway.fm` does for Batch Explorer, and 30 days of `PriceUpdate` in another, and both take JSON-RPC batches. Many public RPCs cap ranges (to 50,000 or 10,000 blocks on the free tiers tried): read in windows then (10,000 blocks is a safe start), and follow the head rather than reading the history again.
 
 ### 3. Pricing
 
@@ -328,7 +332,7 @@ const usdPerDay = bzzUsd == null ? null : bzzPerDay * bzzUsd
 | Ran out and removed by `expireLimited` | the read reverts or the owner is zero, **and** you have its `BatchCreated` | `expired` |
 | Never existed | no `BatchCreated` for this id | `not_found` |
 
-The contract cannot tell the last two apart on its own; the batch's events can. For `expired`, reconstruct `expiry.time` and `expiry.lastBlock` as the first block where `currentTotalOutPayment()` reached the batch's last `normalisedBalance`. That total grows by the price in force each block, so the `PriceUpdate` history gives it back, walked from either end: back from today, where it has run past the balance by a known amount, or forward from the creation, where `BatchCreated` pins it exactly (its `normalisedBalance` minus `totalAmount / 2 ** depth`). `chain.js` starts from the end that looks closer, tries the other if that fails, and gives up after six months of history from each; an archive node could binary search the view instead. If neither works, send `null`; the page then says "Ran out" without a date.
+The contract cannot tell the last two apart on its own; the batch's events can. For `expired`, reconstruct `expiry.time` and `expiry.lastBlock` as the first block where `currentTotalOutPayment()` reached the batch's last `normalisedBalance`. That total grows by the price in force each block, so the `PriceUpdate` history gives it back, walked from either end: back from today, where it has run past the balance by a known amount, or forward from the creation, where `BatchCreated` pins it exactly (its `normalisedBalance` minus `totalAmount / 2 ** depth`). `chain.js` starts from the end that looks closer, tries the other if that fails, reads the history in windows sized by a guess at how far it has to go, and gives up after six months of history from each; an archive node could binary search the view instead. If neither works, send `null`; the page then says "Ran out" without a date.
 
 ### 5. Capacity
 
@@ -379,7 +383,7 @@ On Swarm itself, upload `public/` as a website with `index.html` as both the ind
 
 **An API, if you want one.** Wherever you like, as long as `stamptime-api` in `index.html` points at it. Same origin is simplest. Keep CORS open for the badge.
 
-**Fonts.** The page loads Roboto from Google Fonts, like Batch Explorer. Self host it if you prefer no third party requests; the page falls back to the system font if it fails.
+**Fonts.** Roboto, the font Batch Explorer loads from Google Fonts, is served with the page from `public/fonts/`: one 25 KB file for the three weights, cut to the characters the page shows, made by [`tools/roboto.sh`](tools/roboto.sh), under the SIL Open Font License (`public/fonts/OFL.txt`). The page loads no stylesheet or font from another origin, and shows the system font until the file arrives, or if it fails.
 
 ---
 
@@ -440,6 +444,9 @@ stamptime/
     stamp.js                 all page behaviour, commented
     chain.js                 reads a stamp from Gnosis and builds its document
     qr.js                    draws the batch id as a QR code, no dependencies
+    fonts/
+      roboto.woff2           Roboto 400 to 700, the characters the page shows (generated)
+      OFL.txt                its license
     vendor/
       viem.js                viem 2.47.6, the parts chain.js uses (generated)
     examples/                one JSON per state, used by ?demo= and as fixtures
@@ -450,6 +457,7 @@ stamptime/
       not_found.json
   tools/
     viem.entry.js            what goes into vendor/viem.js, and how to build it again
+    roboto.sh                how fonts/roboto.woff2 is cut from Roboto
   docs/                      screenshots for this README
 ```
 
