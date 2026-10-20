@@ -14,7 +14,8 @@
 /* ---------- 1. Font and tokens */
 
 /* Roboto from this folder: one variable file for 400, 500 and 700 (tools/roboto.sh, SIL Open Font License,
-   fonts/OFL.txt). Until it arrives, and for the arrows it has none of, the system font */
+   fonts/OFL.txt). Until it arrives, and for the arrows it has none of, the system font. It is not preloaded: on a slow
+   link a preload competes with stamp.js, and the stamp shows later for it */
 @font-face{font-family:"Roboto";font-style:normal;font-weight:400 700;font-display:swap;src:url("fonts/roboto.woff2") format("woff2")}
 
 :root{
