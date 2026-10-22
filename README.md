@@ -2,9 +2,9 @@
 
 A public page for one Swarm postage stamp. It answers one question for anyone who lands on it, **how long is this paid for?**, shows who has been keeping it alive, and offers a way for anyone to interact with the stamp.
 
-It is one static page that reads the chain itself, so it can live anywhere: on Swarm behind an ENS name such as `stamptime.eth`, or on any static host. Open it with `?id=<batchId>`.
+It is one static page that reads the chain itself, so it can live anywhere. Today it is on Swarm behind `stamptime.eth`, at [stamptime.eth.limo](https://stamptime.eth.limo/?demo=active), opened with `?id=<batchId>`.
 
-It stands on the great work of [Batch Explorer](https://batch-explorer.github.io/): the page borrows its look, and sends anyone who wants every event of a batch there.
+It stands on the great work of [Batch Explorer](https://batch-explorer.github.io/): the page borrows its look and sends anyone who wants every event of a batch there, and Batch Explorer's batch page links back to it with **Time left**.
 
 <p>
   <img src="docs/screenshot-mobile.png" alt="Stamptime on a phone: 73 days left, the month bar, the keepers ranking" width="300">
@@ -33,6 +33,7 @@ flowchart LR
   you -- "4 · top up in BZZ,<br/>any wallet" --> chain
   chain -. "5 · new time<br/>shows up" .-> page
   screen -- "See every event" --> explorer
+  explorer -- "Time left" --> page
   explorer -. "same contract,<br/>same RPC" .-> chain
 
   classDef person fill:#EEF2FF,stroke:#5048E5,stroke-width:1.5px,color:#020817
@@ -465,9 +466,9 @@ stamptime/
 
 ## Definition of done
 
-- [ ] The page reads active, expired and not found batches from Gnosis, and each document it builds matches `api/stamp.schema.json`.
-- [ ] Both live values are read at one pinned block, and `chain.blockTime` is that block's time.
-- [ ] A host serves the page, at `/stamp/{id}` or with `?id=`, and `?demo=active` still works there.
+- [x] The page reads active, expired and not found batches from Gnosis, and each document it builds matches `api/stamp.schema.json`.
+- [x] Both live values are read at one pinned block, and `chain.blockTime` is that block's time.
+- [x] A host serves the page, at `/stamp/{id}` or with `?id=`, and `?demo=active` still works there.
 - [ ] The RPCs in `stamptime-rpc` hold up under a link shared widely, or a node of its own goes first in the list.
 - [ ] Tested on a phone on a slow connection.
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ethswarm.org/stamp/api/stamp.schema.json",
+  "$id": "urn:stamptime:stamp",
   "title": "Stamptime stamp",
   "description": "Everything the Stamptime page needs to render one Swarm postage stamp. Built in the browser by public/chain.js, or returned by GET /api/v1/stamps/{batchId} when an API serves it. Examples in public/examples/. The only token amount is pricing.bzzPerDay, which the page shows in Stamp details (Storage price, and times the days left, Balance) and in Adding time; nowhere else shows BZZ, and nothing shows dollars or PLUR.",
   "type": "object",
@@ -83,7 +83,7 @@
     },
     {
       "if": { "properties": { "status": { "const": "active" } } },
-      "then": { "properties": { "expiry": { "properties": { "time": { "type": "string" } } } } }
+      "then": { "properties": { "expiry": { "type": "object", "properties": { "time": { "type": "string" } } } } }
     }
   ]
 }
