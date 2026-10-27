@@ -93,15 +93,16 @@ dd .copy{vertical-align:-1px}
 dd .copy + .copy{margin-left:4px}   /* room between the hit areas */
 @media (hover:hover){.copy:hover{color:var(--ink)}}
 
-/* ---------- 4. Header, as Batch Explorer's: wordmark, then the live block */
+/* ---------- 4. Header, as Batch Explorer's: the name, then the live block. Its sizes, line and colours (its block
+   reads in the text face, slate, beside its success green); sticky here, as the page is one stamp to scroll through */
 
-.hdr{position:sticky;top:0;z-index:2;background:var(--card);box-shadow:var(--shadow)}
-.hdr-inner{max-width:var(--page);margin:0 auto;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-.wordmark{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;letter-spacing:-.01em}
-.wordmark small{font-size:12px;font-weight:400;color:var(--muted)}
-.live{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--muted);
+.hdr{position:sticky;top:0;z-index:2;background:var(--card);border-bottom:1px solid var(--line);box-shadow:var(--shadow)}
+/* 60px: the height Batch Explorer's search field gives its bar, so the two read as one family */
+.hdr-inner{max-width:var(--page);min-height:60px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+.wordmark{font-size:18px;line-height:28px;font-weight:600;white-space:nowrap}
+.live{display:flex;align-items:center;gap:8px;font-size:12px;line-height:16px;color:var(--slate);
   white-space:nowrap;font-variant-numeric:tabular-nums}
-.live .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green)}
+.live .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#16A34A}
 
 /* ---------- 5. Notice: not found and error, in place of everything else */
 
